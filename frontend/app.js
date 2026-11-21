@@ -20,6 +20,137 @@
     SIDEBAR_COLLAPSED: "ecobi_sidebar_collapsed",
   };
 
+  const CHART_THEME_PALETTES = {
+    dark: {
+      surfaceBg: "#131A29",
+      surfaceBorder: "#2C374F",
+      gridLine: "#B0C4E0",
+      gridLineOpacity: "0.18",
+      axisLine: "#B0C4E0",
+      axisLineOpacity: "0.36",
+      axisTick: "#B0C4E0",
+      axisTickOpacity: "0.42",
+      axisText: "#CBD6EA",
+      splitLine: "#8CE8A8",
+      splitBg: "#1D2E35",
+      splitBorder: "#3B7366",
+      splitText: "#D7F7DC",
+      historyLine: "#6AE896",
+      historyPointFill: "#6AE896",
+      forecastLine: "#2BE4C2",
+      forecastPointFill: "#2BE4C2",
+      baselineLine: "#F5A356",
+      baselinePointFill: "#F5A356",
+      ciFill: "#2BE4C2",
+      ciFillOpacity: "0.18",
+      ciStroke: "#62EDD3",
+      ciStrokeOpacity: "0.65",
+      markerHalo: "#131A29",
+      legendText: "#E4E9F5",
+      financeRevenue: "#A0EBA5",
+      financeCost: "#64CDBA",
+      financeMargin: "#F0AA77",
+      ramTrack: "#2A354D",
+      ramArc: "#A0EBA5",
+      ramArcCritical: "#E7B267",
+      ramValueText: "#E4E9F5",
+      ramSubText: "#B1BAD0",
+      fontFamily: "Inter, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    },
+    light: {
+      surfaceBg: "#FFFFFF",
+      surfaceBorder: "#D5DFD7",
+      gridLine: "#D5E0D8",
+      gridLineOpacity: "1",
+      axisLine: "#9FB2A5",
+      axisLineOpacity: "1",
+      axisTick: "#9FB2A5",
+      axisTickOpacity: "1",
+      axisText: "#2B4239",
+      splitLine: "#1D5A47",
+      splitBg: "#EAF5EE",
+      splitBorder: "#9AC6A9",
+      splitText: "#143D30",
+      historyLine: "#144B3C",
+      historyPointFill: "#144B3C",
+      forecastLine: "#0D856E",
+      forecastPointFill: "#0D856E",
+      baselineLine: "#C45D1E",
+      baselinePointFill: "#C45D1E",
+      ciFill: "#1B9A7E",
+      ciFillOpacity: "0.16",
+      ciStroke: "#0D856E",
+      ciStrokeOpacity: "0.60",
+      markerHalo: "#FFFFFF",
+      legendText: "#262926",
+      financeRevenue: "#16866B",
+      financeCost: "#5687A5",
+      financeMargin: "#C8784A",
+      ramTrack: "#D8E4DB",
+      ramArc: "#25814A",
+      ramArcCritical: "#A96512",
+      ramValueText: "#262926",
+      ramSubText: "#5F675F",
+      fontFamily: "Inter, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    },
+  };
+
+  function getActiveThemeName() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+
+  function getActiveChartTheme() {
+    return CHART_THEME_PALETTES[getActiveThemeName()];
+  }
+
+  function syncPredictiveLegendTheme(theme) {
+    const legend = document.querySelector("#view-predictive .chart-legend");
+    if (!legend) return;
+    legend.style.color = theme.legendText;
+    const swHist = legend.querySelector(".swatch-forest");
+    const swForecast = legend.querySelector(".swatch-natural");
+    const swBase = legend.querySelector(".swatch-terracotta");
+    const swCi = legend.querySelector(".swatch-mint");
+    if (swHist) {
+      swHist.style.backgroundColor = theme.historyLine;
+    }
+    if (swForecast) {
+      swForecast.style.backgroundColor = "transparent";
+      swForecast.style.borderTop = `3px dashed ${theme.forecastLine}`;
+    }
+    if (swBase) {
+      swBase.style.backgroundColor = "transparent";
+      swBase.style.borderTop = `2.5px dashed ${theme.baselineLine}`;
+    }
+    if (swCi) {
+      swCi.style.backgroundColor = getActiveThemeName() === "dark" ? "rgba(43, 228, 194, 0.22)" : "rgba(27, 154, 126, 0.18)";
+      swCi.style.border = `1.5px dashed ${theme.ciStroke}`;
+    }
+  }
+
+  function syncAllChartsToTheme() {
+    const theme = getActiveChartTheme();
+    syncPredictiveLegendTheme(theme);
+    renderPredictiveChart();
+    if (state.financialEsgAnalysis?.monthly_series) {
+      updateDashboardFinanceChart(state.financialEsgAnalysis.monthly_series);
+    }
+    const gaugeSvg = document.getElementById("dash-ram-gauge-svg");
+    if (gaugeSvg) {
+      const track = gaugeSvg.querySelector(".ram-gauge-track");
+      const arc = document.getElementById("dash-ram-gauge-arc");
+      const pctText = document.getElementById("dash-ram-gauge-pct");
+      const mbText = document.getElementById("dash-ram-gauge-mb");
+      if (track) track.setAttribute("stroke", theme.ramTrack);
+      if (arc) {
+        const isCritical = arc.getAttribute("data-alert-level") === "CRITICAL";
+        arc.setAttribute("stroke", isCritical ? theme.ramArcCritical : theme.ramArc);
+      }
+      if (pctText) pctText.setAttribute("fill", theme.ramValueText);
+      if (mbText) mbText.setAttribute("fill", theme.ramSubText);
+    }
+  }
+
   const CANONICAL_COLUMNS_SPEC = {
     periodo: "periodo — Período temporal (YYYY-MM / Data)",
     receita_bruta: "receita_bruta — Faturamento bruto (R$)",
@@ -433,17 +564,27 @@
     }
 
     // Dashboard Gauge SVG (Arc length = 267)
+    const chartTheme = getActiveChartTheme();
+    const track = document.querySelector("#dash-ram-gauge-svg .ram-gauge-track");
     const arc = document.getElementById("dash-ram-gauge-arc");
     const pctText = document.getElementById("dash-ram-gauge-pct");
     const mbText = document.getElementById("dash-ram-gauge-mb");
+    if (track) track.setAttribute("stroke", chartTheme.ramTrack);
     if (arc) {
       const maxArc = 267;
       const offset = Number.isFinite(pct) ? maxArc - (maxArc * Math.min(100, pct)) / 100 : maxArc;
       arc.setAttribute("stroke-dashoffset", String(offset.toFixed(1)));
-      arc.setAttribute("stroke", alertLevel === "CRITICAL" ? "var(--warning)" : "var(--forest-600)");
+      arc.setAttribute("data-alert-level", alertLevel);
+      arc.setAttribute("stroke", alertLevel === "CRITICAL" ? chartTheme.ramArcCritical : chartTheme.ramArc);
     }
-    if (pctText) pctText.textContent = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : "—%";
-    if (mbText) mbText.textContent = `${formatNumber(usedMb, 1)} / ${formatNumber(budgetMb, 0)} MB`;
+    if (pctText) {
+      pctText.textContent = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : "—%";
+      pctText.setAttribute("fill", chartTheme.ramValueText);
+    }
+    if (mbText) {
+      mbText.textContent = `${formatNumber(usedMb, 1)} / ${formatNumber(budgetMb, 0)} MB`;
+      mbText.setAttribute("fill", chartTheme.ramSubText);
+    }
 
     const usedDetail = document.getElementById("dash-ram-used-detail");
     const budgetDetail = document.getElementById("dash-ram-budget-detail");
@@ -1649,12 +1790,22 @@
         .filter((p) => Number.isFinite(p.value) && p.value > 0);
     }
 
-    const forecastPoints = (pred && Array.isArray(pred.forecast) ? pred.forecast : []).map((f) => ({
-      period: f.period,
-      value: Number(f.predicted_value),
-      low: Number(f.ci_lower_90),
-      high: Number(f.ci_upper_90),
-    }));
+    const theme = getActiveChartTheme();
+    syncPredictiveLegendTheme(theme);
+    container.style.backgroundColor = theme.surfaceBg;
+    container.style.borderColor = theme.surfaceBorder;
+
+    const forecastPoints = (pred && Array.isArray(pred.forecast) ? pred.forecast : []).map((f) => {
+      const val = Number(f.predicted_value);
+      const rawLow = Number.isFinite(Number(f.ci_lower_90)) ? Number(f.ci_lower_90) : val;
+      const rawHigh = Number.isFinite(Number(f.ci_upper_90)) ? Number(f.ci_upper_90) : val;
+      return {
+        period: f.period,
+        value: val,
+        low: Math.min(rawLow, rawHigh),
+        high: Math.max(rawLow, rawHigh),
+      };
+    });
 
     if (histPoints.length === 0 && forecastPoints.length === 0) {
       container.innerHTML = `
@@ -1686,7 +1837,7 @@
       padLeft + (totalPoints > 1 ? (idx / (totalPoints - 1)) * plotW : plotW / 2);
     const yForVal = (v) => padTop + plotH - ((v - minVal) / valSpan) * plotH;
 
-    // Polígono e limites do Intervalo de Confiança 90%
+    // Polígono e limites do Intervalo de Confiança 90% (P10-P90 ordenados cronologicamente)
     let ciPolygonSvg = "";
     if (forecastPoints.length > 0) {
       const startIdx = Math.max(0, histPoints.length - 1);
@@ -1706,9 +1857,9 @@
       });
 
       ciPolygonSvg = `
-        <polygon class="predictive-ci-area" points="${[...upperCoords, ...lowerCoordsDesc].join(" ")}" />
-        <polyline class="predictive-ci-bound" points="${upperCoords.join(" ")}" />
-        <polyline class="predictive-ci-bound" points="${lowerCoordsAsc.join(" ")}" />
+        <polygon class="predictive-ci-area" points="${[...upperCoords, ...lowerCoordsDesc].join(" ")}" fill="${theme.ciFill}" fill-opacity="${theme.ciFillOpacity}" stroke="none" />
+        <polyline class="predictive-ci-bound" points="${upperCoords.join(" ")}" fill="none" stroke="${theme.ciStroke}" stroke-opacity="${theme.ciStrokeOpacity}" stroke-width="1.25" stroke-dasharray="4 3" stroke-linecap="round" />
+        <polyline class="predictive-ci-bound" points="${lowerCoordsAsc.join(" ")}" fill="none" stroke="${theme.ciStroke}" stroke-opacity="${theme.ciStrokeOpacity}" stroke-width="1.25" stroke-dasharray="4 3" stroke-linecap="round" />
       `;
     }
 
@@ -1739,16 +1890,16 @@
         const badgeY = padTop - 24;
 
         splitLineSvg = `
-          <line class="predictive-split-line" x1="${splitX}" y1="${padTop}" x2="${splitX}" y2="${padTop + plotH}" />
-          <rect class="predictive-split-badge" x="${badgeX.toFixed(1)}" y="${badgeY}" width="${badgeWidth}" height="${badgeHeight}" rx="6" />
-          <text class="predictive-split-label" x="${(badgeX + badgeWidth / 2).toFixed(1)}" y="${badgeY + 14.5}" text-anchor="middle">Início da Projeção (IC 90%)</text>
+          <line class="predictive-split-line" x1="${splitX}" y1="${padTop}" x2="${splitX}" y2="${padTop + plotH}" stroke="${theme.splitLine}" stroke-width="1.6" stroke-dasharray="5 4" />
+          <rect class="predictive-split-badge" x="${badgeX.toFixed(1)}" y="${badgeY}" width="${badgeWidth}" height="${badgeHeight}" rx="6" fill="${theme.splitBg}" stroke="${theme.splitBorder}" stroke-width="1" />
+          <text class="predictive-split-label" x="${(badgeX + badgeWidth / 2).toFixed(1)}" y="${badgeY + 14.5}" text-anchor="middle" fill="${theme.splitText}" font-family="${theme.fontFamily}" font-size="11" font-weight="700">Início da Projeção (IC 90%)</text>
         `;
 
         const baseY = yForVal(lastVal).toFixed(1);
         const endX = xForIdx(totalPoints - 1).toFixed(1);
         baselineLineSvg = `
-          <line class="predictive-line-baseline" x1="${splitX}" y1="${baseY}" x2="${endX}" y2="${baseY}" />
-          <circle class="predictive-point-baseline" cx="${endX}" cy="${baseY}" r="3.8"><title>Referência Naive Baseline (persistência): ${formatNumber(lastVal, 2)}</title></circle>
+          <line class="predictive-line-baseline" x1="${splitX}" y1="${baseY}" x2="${endX}" y2="${baseY}" stroke="${theme.baselineLine}" stroke-width="2.25" stroke-dasharray="5 4" stroke-linecap="round" />
+          <circle class="predictive-point-baseline" cx="${endX}" cy="${baseY}" r="3.8" fill="${theme.baselinePointFill}" stroke="${theme.markerHalo}" stroke-width="1.4"><title>Referência Naive Baseline (persistência): ${formatNumber(lastVal, 2)}</title></circle>
         `;
       }
 
@@ -1764,8 +1915,8 @@
       const val = minVal + t * valSpan;
       const y = yForVal(val).toFixed(1);
       return `
-        <line class="predictive-grid-line" x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" />
-        <text class="predictive-axis-label predictive-axis-y" x="${padLeft - 10}" y="${Number(y) + 4}" text-anchor="end">${formatNumber(
+        <line class="predictive-grid-line" x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="${theme.gridLine}" stroke-opacity="${theme.gridLineOpacity}" stroke-width="1" />
+        <text class="predictive-axis-label predictive-axis-y" x="${padLeft - 10}" y="${Number(y) + 4}" text-anchor="end" fill="${theme.axisText}" font-family="${theme.fontFamily}" font-size="11.5" font-weight="500">${formatNumber(
         val,
         0
       )}</text>
@@ -1773,23 +1924,34 @@
     });
 
     const axisLinesSvg = `
-      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" />
-      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop + plotH}" x2="${width - padRight}" y2="${padTop + plotH}" />
+      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" stroke="${theme.axisLine}" stroke-opacity="${theme.axisLineOpacity}" stroke-width="1.2" />
+      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop + plotH}" x2="${width - padRight}" y2="${padTop + plotH}" stroke="${theme.axisLine}" stroke-opacity="${theme.axisLineOpacity}" stroke-width="1.2" />
     `;
 
-    // Rótulos e marcas do eixo X
+    // Rótulos e marcas do eixo X com espaçamento mínimo em pixels para evitar sobreposição
     const allLabels = [
       ...histPoints.map((p) => p.period),
       ...forecastPoints.map((f) => f.period),
     ];
-    const stepX = Math.max(1, Math.floor(allLabels.length / 8));
+    const lastLabelIdx = allLabels.length - 1;
+    const lastLabelX = lastLabelIdx >= 0 ? xForIdx(lastLabelIdx) : 0;
+    let prevDrawnX = -Infinity;
     const xLabelsSvg = allLabels
       .map((lbl, idx) => {
-        if (idx % stepX !== 0 && idx !== allLabels.length - 1) return "";
-        const x = xForIdx(idx).toFixed(1);
+        const xNum = xForIdx(idx);
+        const isFirst = idx === 0;
+        const isLast = idx === lastLabelIdx;
+        if (!isFirst && !isLast) {
+          if (xNum - prevDrawnX < 68 || lastLabelX - xNum < 64) return "";
+        }
+        if (isLast && idx > 0 && xNum - prevDrawnX < 52) {
+          return "";
+        }
+        prevDrawnX = xNum;
+        const x = xNum.toFixed(1);
         return `
-          <line class="predictive-axis-tick" x1="${x}" y1="${padTop + plotH}" x2="${x}" y2="${padTop + plotH + 5}" />
-          <text class="predictive-axis-label predictive-axis-x" x="${x}" y="${height - 14}" text-anchor="middle">${escapeHtml(
+          <line class="predictive-axis-tick" x1="${x}" y1="${padTop + plotH}" x2="${x}" y2="${padTop + plotH + 5}" stroke="${theme.axisTick}" stroke-opacity="${theme.axisTickOpacity}" stroke-width="1.1" />
+          <text class="predictive-axis-label predictive-axis-x" x="${x}" y="${height - 14}" text-anchor="middle" fill="${theme.axisText}" font-family="${theme.fontFamily}" font-size="11.5" font-weight="500">${escapeHtml(
           lbl
         )}</text>
         `;
@@ -1799,9 +1961,9 @@
     const histCircles = histPoints
       .map(
         (p, idx) =>
-          `<circle class="predictive-point-history" cx="${xForIdx(idx).toFixed(1)}" cy="${yForVal(p.value).toFixed(
+          `<circle class="predictive-point-history" data-period="${escapeHtml(p.period)}" data-value="${p.value}" cx="${xForIdx(idx).toFixed(1)}" cy="${yForVal(p.value).toFixed(
             1
-          )}" r="4.2"><title>${escapeHtml(p.period)} Realizado: ${formatNumber(p.value, 2)}</title></circle>`
+          )}" r="4.2" fill="${theme.historyPointFill}" stroke="${theme.markerHalo}" stroke-width="1.6"><title>${escapeHtml(p.period)} Realizado: ${formatNumber(p.value, 2)}</title></circle>`
       )
       .join("");
 
@@ -1814,7 +1976,7 @@
         const pts = `${cx.toFixed(1)},${(cy - r).toFixed(1)} ${(cx + r).toFixed(1)},${cy.toFixed(1)} ${cx.toFixed(
           1
         )},${(cy + r).toFixed(1)} ${(cx - r).toFixed(1)},${cy.toFixed(1)}`;
-        return `<polygon class="predictive-point-forecast" points="${pts}"><title>${escapeHtml(
+        return `<polygon class="predictive-point-forecast" data-period="${escapeHtml(fp.period)}" data-value="${fp.value}" data-value-formatted="${escapeHtml(formatNumber(fp.value, 2))}" points="${pts}" fill="${theme.forecastPointFill}" stroke="${theme.markerHalo}" stroke-width="1.6"><title>${escapeHtml(
           fp.period
         )} Previsto: ${formatNumber(fp.value, 2)} [IC90%: ${formatNumber(fp.low, 2)} a ${formatNumber(
           fp.high,
@@ -1825,6 +1987,7 @@
 
     container.innerHTML = `
       <svg viewBox="0 0 ${width} ${height}" class="predictive-svg" role="img" aria-label="Série temporal histórica e previsão com intervalo de confiança de 90%">
+        <rect class="predictive-plot-bg" x="0" y="0" width="${width}" height="${height}" rx="8" fill="${theme.surfaceBg}" />
         ${gridTicks.join("")}
         ${axisLinesSvg}
         ${ciPolygonSvg}
@@ -1832,12 +1995,12 @@
         ${baselineLineSvg}
         ${
           histPolyPoints
-            ? `<polyline class="predictive-line-history" points="${histPolyPoints}" />`
+            ? `<polyline class="predictive-line-history" points="${histPolyPoints}" fill="none" stroke="${theme.historyLine}" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" />`
             : ""
         }
         ${
           forecastPolyPoints
-            ? `<polyline class="predictive-line-forecast" points="${forecastPolyPoints}" />`
+            ? `<polyline class="predictive-line-forecast" points="${forecastPolyPoints}" fill="none" stroke="${theme.forecastLine}" stroke-width="2.85" stroke-dasharray="8 4" stroke-linecap="round" stroke-linejoin="round" />`
             : ""
         }
         ${histCircles}
@@ -2582,14 +2745,15 @@
     const marginY = (value) => bottom - (((value - marginMinimum) / marginRange) * plotHeight);
     const pathFor = (property, yFor) => series.map((item, index) => `${index ? "L" : "M"}${xFor(index).toFixed(1)},${yFor(item[property]).toFixed(1)}`).join(" ");
     const compactCurrency = (value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 }).format(value);
+    const chartTheme = getActiveChartTheme();
     const grid = [0, 0.5, 1].map((ratio) => {
       const y = bottom - ratio * plotHeight;
-      return `<line class="chart-grid-line" x1="${left}" y1="${y}" x2="${right}" y2="${y}"></line><text class="chart-axis-label" x="${left - 8}" y="${y + 4}" text-anchor="end">${escapeHtml(compactCurrency(ratio * moneyMaximum))}</text>`;
+      return `<line class="chart-grid-line" x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${chartTheme.gridLine}" stroke-opacity="${chartTheme.gridLineOpacity}" stroke-width="1"></line><text class="chart-axis-label" x="${left - 8}" y="${y + 4}" text-anchor="end" fill="${chartTheme.axisText}" font-family="${chartTheme.fontFamily}" font-size="11">${escapeHtml(compactCurrency(ratio * moneyMaximum))}</text>`;
     }).join("");
     const labelIndexes = Array.from(new Set([0, Math.floor((series.length - 1) / 2), series.length - 1]));
-    const periodLabels = labelIndexes.map((index) => `<text class="chart-axis-label" x="${xFor(index)}" y="${bottom + 24}" text-anchor="middle">${escapeHtml(series[index].period)}</text>`).join("");
+    const periodLabels = labelIndexes.map((index) => `<text class="chart-axis-label" x="${xFor(index)}" y="${bottom + 24}" text-anchor="middle" fill="${chartTheme.axisText}" font-family="${chartTheme.fontFamily}" font-size="11">${escapeHtml(series[index].period)}</text>`).join("");
     const marginPath = margins.length === series.length
-      ? `<path class="finance-series-line finance-series-margin" d="${pathFor("margin", marginY)}"></path><text class="chart-axis-label chart-axis-label-secondary" x="${right + 8}" y="${top + 4}">${formatNumber(marginMaximum, 0)}%</text><text class="chart-axis-label chart-axis-label-secondary" x="${right + 8}" y="${bottom}">${formatNumber(marginMinimum, 0)}%</text>`
+      ? `<path class="finance-series-line finance-series-margin" d="${pathFor("margin", marginY)}" fill="none" stroke="${chartTheme.financeMargin}" stroke-width="2.5" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round"></path><text class="chart-axis-label chart-axis-label-secondary" x="${right + 8}" y="${top + 4}" fill="${chartTheme.axisText}" font-family="${chartTheme.fontFamily}" font-size="11">${formatNumber(marginMaximum, 0)}%</text><text class="chart-axis-label chart-axis-label-secondary" x="${right + 8}" y="${bottom}" fill="${chartTheme.axisText}" font-family="${chartTheme.fontFamily}" font-size="11">${formatNumber(marginMinimum, 0)}%</text>`
       : "";
 
     container.innerHTML = `
@@ -2597,15 +2761,15 @@
         <title id="dash-finance-svg-title">Receita líquida, custos e margem por período</title>
         <desc id="dash-finance-svg-description">Série financeira real para ${escapeHtml(series[0].period)} a ${escapeHtml(series[series.length - 1].period)}; margem em eixo percentual separado.</desc>
         ${grid}
-        <path class="finance-series-line finance-series-revenue" d="${pathFor("revenue", moneyY)}"></path>
-        <path class="finance-series-line finance-series-cost" d="${pathFor("cost", moneyY)}"></path>
+        <path class="finance-series-line finance-series-revenue" d="${pathFor("revenue", moneyY)}" fill="none" stroke="${chartTheme.financeRevenue}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path class="finance-series-line finance-series-cost" d="${pathFor("cost", moneyY)}" fill="none" stroke="${chartTheme.financeCost}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
         ${marginPath}
         ${periodLabels}
       </svg>
-      <div class="chart-legend" aria-label="Séries do gráfico">
-        <span><i class="legend-swatch legend-revenue"></i>Receita líquida</span>
-        <span><i class="legend-swatch legend-cost"></i>Custos totais</span>
-        ${margins.length === series.length ? '<span><i class="legend-swatch legend-margin"></i>Margem (%)</span>' : ""}
+      <div class="chart-legend" aria-label="Séries do gráfico" style="color: ${chartTheme.legendText}">
+        <span><i class="legend-swatch legend-revenue" style="background: ${chartTheme.financeRevenue}"></i>Receita líquida</span>
+        <span><i class="legend-swatch legend-cost" style="background: ${chartTheme.financeCost}"></i>Custos totais</span>
+        ${margins.length === series.length ? `<span><i class="legend-swatch legend-margin" style="background: ${chartTheme.financeMargin}"></i>Margem (%)</span>` : ""}
       </div>
     `;
     container.setAttribute("aria-label", `Evolução financeira real, ${series.length} períodos`);
@@ -2899,7 +3063,17 @@
       localStorage.setItem(STORAGE_KEYS.THEME, theme);
       document.getElementById("btn-toggle-theme")?.setAttribute("aria-label", theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro");
       document.getElementById("btn-toggle-theme")?.setAttribute("aria-pressed", String(theme === "dark"));
+      syncAllChartsToTheme();
     });
+
+    if (typeof MutationObserver === "function") {
+      const themeObserver = new MutationObserver((mutations) => {
+        if (mutations.some((m) => m.attributeName === "data-theme")) {
+          syncAllChartsToTheme();
+        }
+      });
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    }
 
     document.getElementById("btn-toggle-sidebar")?.addEventListener("click", () => {
       const sidebar = document.getElementById("app-sidebar");

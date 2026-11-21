@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const { test } = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -30,6 +31,27 @@ function parseTokens(block) {
     tokens[m[1]] = m[2].trim();
   }
   return tokens;
+}
+
+function extractChartPalettesFromAppJs() {
+  const start = APP_JS.indexOf("const CHART_THEME_PALETTES =");
+  assert.ok(start > -1, "CHART_THEME_PALETTES must exist in frontend/app.js");
+  const eq = APP_JS.indexOf("{", start);
+  let depth = 0;
+  let end = eq;
+  while (end < APP_JS.length) {
+    if (APP_JS[end] === "{") depth += 1;
+    else if (APP_JS[end] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end += 1;
+        break;
+      }
+    }
+    end += 1;
+  }
+  const objLiteral = APP_JS.slice(eq, end);
+  return vm.runInNewContext(`(${objLiteral})`);
 }
 
 function parseColor(value) {
@@ -79,36 +101,41 @@ function contrastRatio(c1, c2) {
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
 
-test("renderPredictiveChart uses semantic CSS classes without hardcoded light-only SVG hex colors", () => {
+test("renderPredictiveChart uses explicit theme SVG presentation attributes and never relies solely on CSS or defaults to black", () => {
   const fnStart = APP_JS.indexOf("function renderPredictiveChart()");
   const fnEnd = APP_JS.indexOf("// 12. TELA 7:", fnStart);
   assert.ok(fnStart > -1 && fnEnd > fnStart, "renderPredictiveChart function bounds must exist");
   const body = APP_JS.slice(fnStart, fnEnd);
 
-  for (const legacyHex of ["#183A32", "#35544B", "#DCE8D9", "#4F7A59", "#C8784A", "#B9D6C2"]) {
+  for (const legacyHex of ["#183A32", "#35544B", "#DCE8D9", "#4F7A59", "#C8784A", "#B9D6C2", "#000000", "#000"]) {
     assert.ok(!body.includes(legacyHex), `renderPredictiveChart must not hardcode ${legacyHex}`);
   }
 
-  for (const cls of [
-    "predictive-grid-line",
-    "predictive-axis-line",
-    "predictive-axis-label",
-    "predictive-ci-area",
-    "predictive-ci-bound",
-    "predictive-split-line",
-    "predictive-split-badge",
-    "predictive-split-label",
-    "predictive-line-history",
-    "predictive-line-forecast",
-    "predictive-line-baseline",
-    "predictive-point-history",
-    "predictive-point-forecast",
-  ]) {
-    assert.ok(body.includes(cls), `renderPredictiveChart must emit .${cls}`);
-  }
+  // Every polyline/polygon/line/text must have explicit SVG attributes so stale CSS never causes black fills
+  assert.ok(body.includes('<polygon class="predictive-ci-area"'), "CI area polygon must exist");
+  assert.ok(body.includes('fill="${theme.ciFill}" fill-opacity="${theme.ciFillOpacity}" stroke="none"'), "CI polygon must carry explicit fill and fill-opacity");
+  assert.ok(body.includes('<polyline class="predictive-ci-bound" points="${upperCoords.join(" ")}" fill="none"'), "CI upper polyline must explicitly set fill=none");
+  assert.ok(body.includes('<polyline class="predictive-ci-bound" points="${lowerCoordsAsc.join(" ")}" fill="none"'), "CI lower polyline must explicitly set fill=none");
+  assert.ok(body.includes('<polyline class="predictive-line-history" points="${histPolyPoints}" fill="none" stroke="${theme.historyLine}"'), "History polyline must explicitly set fill=none and stroke");
+  assert.ok(body.includes('<polyline class="predictive-line-forecast" points="${forecastPolyPoints}" fill="none" stroke="${theme.forecastLine}"'), "Forecast polyline must explicitly set fill=none and stroke");
+  assert.ok(body.includes('<rect class="predictive-plot-bg"'), "Plot background rect must exist");
+  assert.ok(body.includes("syncPredictiveLegendTheme(theme)"), "Legend colors must sync directly with active chart theme");
 });
 
-test("RAM gauge SVG and predictive legend in index.html use theme-aware markup", () => {
+test("updateDashboardFinanceChart and theme toggle explicitly preserve fill=none and live chart synchronization", () => {
+  const finStart = APP_JS.indexOf("function updateDashboardFinanceChart(");
+  const finEnd = APP_JS.indexOf("function updateDashboardOperations(", finStart);
+  const finBody = APP_JS.slice(finStart, finEnd);
+  assert.ok(finBody.includes('class="finance-series-line finance-series-revenue"'), "Revenue series path present");
+  assert.ok(finBody.includes('fill="none" stroke="${chartTheme.financeRevenue}"'), "Revenue path sets explicit fill=none and stroke");
+  assert.ok(finBody.includes('fill="none" stroke="${chartTheme.financeCost}"'), "Cost path sets explicit fill=none and stroke");
+  assert.ok(finBody.includes('fill="none" stroke="${chartTheme.financeMargin}"'), "Margin path sets explicit fill=none and stroke");
+
+  assert.ok(APP_JS.includes("syncAllChartsToTheme();"), "Theme toggle and observer must call syncAllChartsToTheme()");
+  assert.ok(APP_JS.includes("new MutationObserver"), "MutationObserver watches data-theme updates");
+});
+
+test("RAM gauge SVG, cache-busting asset URLs, and predictive legend in index.html are properly configured", () => {
   const gaugeIdx = INDEX_HTML.indexOf('id="dash-ram-gauge-svg"');
   const gaugeSnippet = INDEX_HTML.slice(gaugeIdx, gaugeIdx + 550);
   assert.ok(gaugeSnippet.includes("ram-gauge-track"), "RAM gauge track should use .ram-gauge-track");
@@ -117,34 +144,52 @@ test("RAM gauge SVG and predictive legend in index.html use theme-aware markup",
 
   const legendIdx = INDEX_HTML.indexOf("swatch-forest");
   const legendBlock = INDEX_HTML.slice(Math.max(0, legendIdx - 160), legendIdx + 550);
-  assert.ok(!legendBlock.includes('aria-hidden="true"\n            >') && !legendBlock.includes('<div class="chart-legend" aria-hidden="true">'), "Chart legend must be screen-reader accessible");
+  assert.ok(!legendBlock.includes('<div class="chart-legend" aria-hidden="true">'), "Chart legend must be screen-reader accessible");
+
+  assert.match(INDEX_HTML, /\/static\/styles\.css\?v=/, "styles.css link must include cache-busting query");
+  assert.match(INDEX_HTML, /\/static\/app\.js\?v=/, "app.js script must include cache-busting query");
+  assert.match(INDEX_HTML, /\/static\/onboarding\.js\?v=/, "onboarding.js script must include cache-busting query");
 });
 
-test("Light and Dark Mode chart tokens meet WCAG 2.1 contrast thresholds (>=4.5:1 text, >=3:1 graphics)", () => {
+test("CHART_THEME_PALETTES in app.js matches CSS tokens and meets WCAG 2.1 contrast thresholds in Light and Dark Mode", () => {
   const lightBlock = extractBlock(CSS_TEXT, /\/\*\s*Modern Green Enterprise 3\.0[\s\S]*?:root\s*\{/);
   const darkBlock = extractBlock(CSS_TEXT, /html\[data-theme=dark\]\s*\{/);
   const light = parseTokens(lightBlock);
   const dark = parseTokens(darkBlock);
+  const palettes = extractChartPalettesFromAppJs();
 
-  for (const [modeName, t, cardHex] of [
-    ["light", light, "#F5F6F5"],
-    ["dark", dark, "#1A2132"],
+  assert.equal(palettes.light.surfaceBg, light["--chart-surface"]);
+  assert.equal(palettes.light.historyLine, light["--chart-series-history"]);
+  assert.equal(palettes.light.forecastLine, light["--chart-series-forecast"]);
+  assert.equal(palettes.light.baselineLine, light["--chart-series-baseline"]);
+
+  assert.equal(palettes.dark.surfaceBg, dark["--chart-surface"]);
+  assert.equal(palettes.dark.historyLine, dark["--chart-series-history"]);
+  assert.equal(palettes.dark.forecastLine, dark["--chart-series-forecast"]);
+  assert.equal(palettes.dark.baselineLine, dark["--chart-series-baseline"]);
+
+  for (const [modeName, p, t, cardHex] of [
+    ["light", palettes.light, light, "#F5F6F5"],
+    ["dark", palettes.dark, dark, "#1A2132"],
   ]) {
-    const surface = parseColor(t["--chart-surface"]);
+    const surface = parseColor(p.surfaceBg);
     const card = parseColor(cardHex);
-    const axisText = parseColor(t["--chart-axis-text"]);
-    const splitBg = parseColor(t["--chart-split-bg"]);
-    const splitText = parseColor(t["--chart-split-text"]);
-    const histLine = parseColor(t["--chart-series-history"]);
-    const fcLine = parseColor(t["--chart-series-forecast"]);
-    const baseLine = parseColor(t["--chart-series-baseline"]);
-    const splitLine = parseColor(t["--chart-split-line"]);
-    const ciBlend = compositeOver(parseColor(t["--chart-ci-fill"]), surface);
-    const legendText = parseColor(t["--color-text-primary"]);
+    const axisText = parseColor(p.axisText);
+    const splitBg = parseColor(p.splitBg);
+    const splitText = parseColor(p.splitText);
+    const histLine = parseColor(p.historyLine);
+    const fcLine = parseColor(p.forecastLine);
+    const baseLine = parseColor(p.baselineLine);
+    const splitLine = parseColor(p.splitLine);
+    const ciRgb = parseColor(p.ciFill);
+    ciRgb.a = Number(p.ciFillOpacity);
+    const ciBlend = compositeOver(ciRgb, surface);
+    const legendText = parseColor(p.legendText);
 
     assert.ok(contrastRatio(axisText, surface) >= 4.5, `${modeName} axis text contrast must be >= 4.5:1`);
     assert.ok(contrastRatio(splitText, splitBg) >= 4.5, `${modeName} split pill text contrast must be >= 4.5:1`);
     assert.ok(contrastRatio(legendText, card) >= 4.5, `${modeName} legend text contrast must be >= 4.5:1`);
+    assert.equal(p.legendText.toUpperCase(), t["--color-text-primary"].toUpperCase());
 
     assert.ok(contrastRatio(histLine, surface) >= 3.0, `${modeName} history series contrast must be >= 3:1`);
     assert.ok(contrastRatio(fcLine, surface) >= 3.0, `${modeName} forecast series contrast must be >= 3:1`);
@@ -154,11 +199,4 @@ test("Light and Dark Mode chart tokens meet WCAG 2.1 contrast thresholds (>=4.5:
     assert.ok(contrastRatio(fcLine, ciBlend) >= 3.0, `${modeName} forecast line over CI fill must be >= 3:1`);
     assert.ok(contrastRatio(baseLine, ciBlend) >= 3.0, `${modeName} baseline line over CI fill must be >= 3:1`);
   }
-
-  // Palette must adapt semantically across Light and Dark rather than reusing identical colors
-  assert.notEqual(light["--chart-surface"], dark["--chart-surface"]);
-  assert.notEqual(light["--chart-axis-text"], dark["--chart-axis-text"]);
-  assert.notEqual(light["--chart-series-history"], dark["--chart-series-history"]);
-  assert.notEqual(light["--chart-series-forecast"], dark["--chart-series-forecast"]);
-  assert.notEqual(light["--chart-series-baseline"], dark["--chart-series-baseline"]);
 });

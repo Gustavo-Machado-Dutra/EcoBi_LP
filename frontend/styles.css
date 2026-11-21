@@ -2863,10 +2863,10 @@ textarea {
   --chart-split-border: #9AC6A9;
   --chart-split-text: #143D30;
   --chart-series-history: #144B3C;
-  --chart-series-forecast: #0D7A85;
+  --chart-series-forecast: #0D856E;
   --chart-series-baseline: #C45D1E;
-  --chart-ci-fill: rgba(13, 122, 133, 0.16);
-  --chart-ci-stroke: rgba(13, 122, 133, 0.58);
+  --chart-ci-fill: rgba(27, 154, 126, 0.16);
+  --chart-ci-stroke: rgba(13, 133, 110, 0.60);
   --chart-marker-halo: #FFFFFF;
   --chart-track: #D8E4DB;
   --forest-900: var(--color-forest-ink);
@@ -3105,10 +3105,10 @@ html[data-theme=dark] {
   --chart-split-border: #3B7366;
   --chart-split-text: #D7F7DC;
   --chart-series-history: #6AE896;
-  --chart-series-forecast: #38D8E6;
+  --chart-series-forecast: #2BE4C2;
   --chart-series-baseline: #F5A356;
-  --chart-ci-fill: rgba(56, 216, 230, 0.19);
-  --chart-ci-stroke: rgba(110, 232, 242, 0.62);
+  --chart-ci-fill: rgba(43, 228, 194, 0.18);
+  --chart-ci-stroke: rgba(98, 237, 211, 0.65);
   --chart-marker-halo: #131A29;
   --chart-track: #2A354D;
   --forest-900: var(--color-forest-ink);
