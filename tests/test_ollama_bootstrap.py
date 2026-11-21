@@ -101,6 +101,8 @@ def run_bootstrap(tmp_path: Path, scenario: str) -> dict:
         if ('{scenario}' -eq 'low-disk-install') {{ $script:state.FreeSpaceBytes = 2GB }}
         if ('{scenario}' -eq 'low-disk-model') {{ $script:state.Installed = $true; $script:state.ServerReady = $true; $script:state.FreeSpaceBytes = 2GB }}
         if ('{scenario}' -eq 'api-missing-model') {{ $script:state.Installed = $true; $script:state.ServerReady = $true }}
+        if ('{scenario}' -eq 'model-missing-after-install') {{ $script:state.Installed = $true; $script:state.ServerReady = $true; $script:state.ListenerAddresses = @('127.0.0.1') }}
+        if ('{scenario}' -eq 'server-never-starts') {{ $script:state.Installed = $true; $script:state.ListenerAddresses = @('127.0.0.1') }}
         $originalHost = 'preexisting-user-value'
         $env:OLLAMA_HOST = $originalHost
         $params = @{{
@@ -371,3 +373,19 @@ def test_default_listener_filter_allows_absent_port_without_error(tmp_path: Path
     )
     assert res.returncode == 0, res.stderr + res.stdout
     assert "ABSENT_OK=True" in res.stdout
+
+
+def test_installed_ollama_with_missing_model_pulls_model_without_reinstalling(tmp_path: Path) -> None:
+    result = run_bootstrap(tmp_path, "model-missing-after-install")
+    assert result["Ready"] is True
+    assert result["State"]["DownloadCount"] == 0
+    assert result["State"]["InstallCount"] == 0
+    assert result["State"]["PullCount"] == 1
+    assert result["State"]["CheckApiCount"] == 1
+
+
+def test_server_failing_to_start_falls_back_cleanly(tmp_path: Path) -> None:
+    result = run_bootstrap(tmp_path, "server-never-starts")
+    assert result["Ready"] is False
+    assert result["State"]["StartCount"] == 1
+    assert result["State"]["PullCount"] == 0
