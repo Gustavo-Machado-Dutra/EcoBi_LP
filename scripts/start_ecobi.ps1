@@ -32,21 +32,24 @@ Write-Host " Raiz do Projeto: $RootDir" -ForegroundColor Gray
 Write-Host "=======================================================" -ForegroundColor DarkGreen
 Write-Host "Preparando ambiente..." -ForegroundColor Cyan
 
+# PowerShell 5.1 treats stderr from native executables as terminating errors when ErrorActionPreference=Stop.
+$ErrorActionPreference = "Continue"
+
 function Resolve-EcoBIPythonLauncher {
     $pyCommand = Get-Command py -ErrorAction SilentlyContinue
     if ($pyCommand) {
-        $pyVersion = & $pyCommand.Source -3 --version 2>$null
+        $pyVersion = & $pyCommand.Source -3 --version 2>&1 | Out-String
         if ($LASTEXITCODE -eq 0 -and $pyVersion -match 'Python (\d+\.\d+)' -and [version]$Matches[1] -ge [version]'3.11') {
             return @{ Exe = $pyCommand.Source; Prefix = @('-3') }
         }
-        $py311Version = & $pyCommand.Source -3.11 --version 2>$null
+        $py311Version = & $pyCommand.Source -3.11 --version 2>&1 | Out-String
         if ($LASTEXITCODE -eq 0 -and $py311Version -match 'Python (\d+\.\d+)' -and [version]$Matches[1] -ge [version]'3.11') {
             return @{ Exe = $pyCommand.Source; Prefix = @('-3.11') }
         }
     }
     $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
     if ($pythonCommand) {
-        $pythonVersion = & $pythonCommand.Source --version 2>$null
+        $pythonVersion = & $pythonCommand.Source --version 2>&1 | Out-String
         if ($LASTEXITCODE -eq 0 -and $pythonVersion -match 'Python (\d+\.\d+)' -and [version]$Matches[1] -ge [version]'3.11') {
             return @{ Exe = $pythonCommand.Source; Prefix = @() }
         }
@@ -63,7 +66,7 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 $PythonExe = $VenvPython
-& $PythonExe -c "import fastapi, uvicorn, pandas, numpy, sklearn, openpyxl, multipart, psutil, httpx" 2>$null
+& $PythonExe -c "import sys; exec('try:\n import fastapi, uvicorn, pandas, numpy, sklearn, openpyxl, multipart, psutil, httpx\nexcept Exception:\n sys.exit(1)')" 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Installing declared dependencies into the project-local .venv..." -ForegroundColor Yellow
     & $PythonExe -m pip install --disable-pip-version-check --no-input -r "$RootDir\requirements.txt"
