@@ -1664,11 +1664,11 @@
     }
 
     const width = 860;
-    const height = 300;
-    const padLeft = 72;
-    const padRight = 32;
-    const padTop = 26;
-    const padBottom = 44;
+    const height = 324;
+    const padLeft = 82;
+    const padRight = 30;
+    const padTop = 34;
+    const padBottom = 46;
     const plotW = width - padLeft - padRight;
     const plotH = height - padTop - padBottom;
 
@@ -1686,23 +1686,30 @@
       padLeft + (totalPoints > 1 ? (idx / (totalPoints - 1)) * plotW : plotW / 2);
     const yForVal = (v) => padTop + plotH - ((v - minVal) / valSpan) * plotH;
 
-    // Polígono do Intervalo de Confiança 90%
+    // Polígono e limites do Intervalo de Confiança 90%
     let ciPolygonSvg = "";
     if (forecastPoints.length > 0) {
       const startIdx = Math.max(0, histPoints.length - 1);
       const anchorVal = histPoints.length > 0 ? histPoints[histPoints.length - 1].value : forecastPoints[0].value;
-      const upperCoords = [`${xForIdx(startIdx).toFixed(1)},${yForVal(anchorVal).toFixed(1)}`];
-      const lowerCoords = [`${xForIdx(startIdx).toFixed(1)},${yForVal(anchorVal).toFixed(1)}`];
+      const anchorCoord = `${xForIdx(startIdx).toFixed(1)},${yForVal(anchorVal).toFixed(1)}`;
+      const upperCoords = [anchorCoord];
+      const lowerCoordsDesc = [anchorCoord];
+      const lowerCoordsAsc = [anchorCoord];
 
       forecastPoints.forEach((fp, i) => {
         const idx = histPoints.length + i;
-        upperCoords.push(`${xForIdx(idx).toFixed(1)},${yForVal(fp.high).toFixed(1)}`);
-        lowerCoords.unshift(`${xForIdx(idx).toFixed(1)},${yForVal(fp.low).toFixed(1)}`);
+        const xStr = xForIdx(idx).toFixed(1);
+        upperCoords.push(`${xStr},${yForVal(fp.high).toFixed(1)}`);
+        const lowStr = `${xStr},${yForVal(fp.low).toFixed(1)}`;
+        lowerCoordsDesc.unshift(lowStr);
+        lowerCoordsAsc.push(lowStr);
       });
 
-      ciPolygonSvg = `<polygon points="${[...upperCoords, ...lowerCoords].join(
-        " "
-      )}" fill="#B9D6C2" fill-opacity="0.55" stroke="#4F7A59" stroke-width="1" stroke-dasharray="3,3" />`;
+      ciPolygonSvg = `
+        <polygon class="predictive-ci-area" points="${[...upperCoords, ...lowerCoordsDesc].join(" ")}" />
+        <polyline class="predictive-ci-bound" points="${upperCoords.join(" ")}" />
+        <polyline class="predictive-ci-bound" points="${lowerCoordsAsc.join(" ")}" />
+      `;
     }
 
     // Linha histórica
@@ -1722,15 +1729,27 @@
         const lastVal = histPoints[lastIdx].value;
         fcCoords.push(`${xForIdx(lastIdx).toFixed(1)},${yForVal(lastVal).toFixed(1)}`);
 
-        const splitX = xForIdx(lastIdx).toFixed(1);
+        const splitXNum = xForIdx(lastIdx);
+        const splitX = splitXNum.toFixed(1);
+        const badgeWidth = 178;
+        const badgeHeight = 22;
+        const badgeX = splitXNum + 8 + badgeWidth <= width - padRight
+          ? splitXNum + 8
+          : Math.max(padLeft, splitXNum - 8 - badgeWidth);
+        const badgeY = padTop - 24;
+
         splitLineSvg = `
-          <line x1="${splitX}" y1="${padTop}" x2="${splitX}" y2="${padTop + plotH}" stroke="#183A32" stroke-width="1.4" stroke-dasharray="4,4" />
-          <text x="${Number(splitX) + 6}" y="${padTop + 14}" font-size="10" font-weight="700" fill="#183A32">Início da Projeção (IC 90%)</text>
+          <line class="predictive-split-line" x1="${splitX}" y1="${padTop}" x2="${splitX}" y2="${padTop + plotH}" />
+          <rect class="predictive-split-badge" x="${badgeX.toFixed(1)}" y="${badgeY}" width="${badgeWidth}" height="${badgeHeight}" rx="6" />
+          <text class="predictive-split-label" x="${(badgeX + badgeWidth / 2).toFixed(1)}" y="${badgeY + 14.5}" text-anchor="middle">Início da Projeção (IC 90%)</text>
         `;
 
         const baseY = yForVal(lastVal).toFixed(1);
         const endX = xForIdx(totalPoints - 1).toFixed(1);
-        baselineLineSvg = `<line x1="${splitX}" y1="${baseY}" x2="${endX}" y2="${baseY}" stroke="#C8784A" stroke-width="2" stroke-dasharray="5,4" />`;
+        baselineLineSvg = `
+          <line class="predictive-line-baseline" x1="${splitX}" y1="${baseY}" x2="${endX}" y2="${baseY}" />
+          <circle class="predictive-point-baseline" cx="${endX}" cy="${baseY}" r="3.8"><title>Referência Naive Baseline (persistência): ${formatNumber(lastVal, 2)}</title></circle>
+        `;
       }
 
       forecastPoints.forEach((fp, i) => {
@@ -1740,20 +1759,25 @@
       forecastPolyPoints = fcCoords.join(" ");
     }
 
-    // Linhas de grade horizontais
+    // Linhas de grade horizontais e eixos de referência
     const gridTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => {
       const val = minVal + t * valSpan;
       const y = yForVal(val).toFixed(1);
       return `
-        <line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="#DCE8D9" stroke-width="1" />
-        <text x="${padLeft - 8}" y="${Number(y) + 4}" text-anchor="end" font-size="10" fill="#35544B">${formatNumber(
+        <line class="predictive-grid-line" x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" />
+        <text class="predictive-axis-label predictive-axis-y" x="${padLeft - 10}" y="${Number(y) + 4}" text-anchor="end">${formatNumber(
         val,
         0
       )}</text>
       `;
     });
 
-    // Rótulos do eixo X
+    const axisLinesSvg = `
+      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" />
+      <line class="predictive-axis-line" x1="${padLeft}" y1="${padTop + plotH}" x2="${width - padRight}" y2="${padTop + plotH}" />
+    `;
+
+    // Rótulos e marcas do eixo X
     const allLabels = [
       ...histPoints.map((p) => p.period),
       ...forecastPoints.map((f) => f.period),
@@ -1763,53 +1787,61 @@
       .map((lbl, idx) => {
         if (idx % stepX !== 0 && idx !== allLabels.length - 1) return "";
         const x = xForIdx(idx).toFixed(1);
-        return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="#35544B">${escapeHtml(
+        return `
+          <line class="predictive-axis-tick" x1="${x}" y1="${padTop + plotH}" x2="${x}" y2="${padTop + plotH + 5}" />
+          <text class="predictive-axis-label predictive-axis-x" x="${x}" y="${height - 14}" text-anchor="middle">${escapeHtml(
           lbl
-        )}</text>`;
+        )}</text>
+        `;
       })
       .join("");
 
     const histCircles = histPoints
       .map(
         (p, idx) =>
-          `<circle cx="${xForIdx(idx).toFixed(1)}" cy="${yForVal(p.value).toFixed(
+          `<circle class="predictive-point-history" cx="${xForIdx(idx).toFixed(1)}" cy="${yForVal(p.value).toFixed(
             1
-          )}" r="3.2" fill="#183A32"><title>${escapeHtml(p.period)}: ${formatNumber(p.value, 2)}</title></circle>`
+          )}" r="4.2"><title>${escapeHtml(p.period)} Realizado: ${formatNumber(p.value, 2)}</title></circle>`
       )
       .join("");
 
-    const fcCircles = forecastPoints
+    const fcMarkers = forecastPoints
       .map((fp, i) => {
         const idx = histPoints.length + i;
-        return `<circle cx="${xForIdx(idx).toFixed(1)}" cy="${yForVal(fp.value).toFixed(
+        const cx = xForIdx(idx);
+        const cy = yForVal(fp.value);
+        const r = 5.2;
+        const pts = `${cx.toFixed(1)},${(cy - r).toFixed(1)} ${(cx + r).toFixed(1)},${cy.toFixed(1)} ${cx.toFixed(
           1
-        )}" r="4" fill="#4F7A59" stroke="#FFFFFF" stroke-width="1.2"><title>${escapeHtml(
+        )},${(cy + r).toFixed(1)} ${(cx - r).toFixed(1)},${cy.toFixed(1)}`;
+        return `<polygon class="predictive-point-forecast" points="${pts}"><title>${escapeHtml(
           fp.period
         )} Previsto: ${formatNumber(fp.value, 2)} [IC90%: ${formatNumber(fp.low, 2)} a ${formatNumber(
           fp.high,
           2
-        )}]</title></circle>`;
+        )}]</title></polygon>`;
       })
       .join("");
 
     container.innerHTML = `
       <svg viewBox="0 0 ${width} ${height}" class="predictive-svg" role="img" aria-label="Série temporal histórica e previsão com intervalo de confiança de 90%">
         ${gridTicks.join("")}
+        ${axisLinesSvg}
         ${ciPolygonSvg}
         ${splitLineSvg}
         ${baselineLineSvg}
         ${
           histPolyPoints
-            ? `<polyline fill="none" stroke="#183A32" stroke-width="2.5" points="${histPolyPoints}" />`
+            ? `<polyline class="predictive-line-history" points="${histPolyPoints}" />`
             : ""
         }
         ${
           forecastPolyPoints
-            ? `<polyline fill="none" stroke="#4F7A59" stroke-width="2.8" points="${forecastPolyPoints}" />`
+            ? `<polyline class="predictive-line-forecast" points="${forecastPolyPoints}" />`
             : ""
         }
         ${histCircles}
-        ${fcCircles}
+        ${fcMarkers}
         ${xLabelsSvg}
       </svg>
     `;

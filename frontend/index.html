@@ -483,8 +483,8 @@
               <div class="ram-gauge-layout">
                 <div class="ram-svg-wrapper">
                   <svg id="dash-ram-gauge-svg" viewBox="0 0 220 135" class="ram-gauge-svg" role="img" aria-label="Medidor de consumo de memória RAM do EcoBI contra o limite de 8192 MB">
-                    <path d="M 25 115 A 85 85 0 0 1 195 115" fill="none" stroke="#DCE8D9" stroke-width="18" stroke-linecap="round"></path>
-                    <path id="dash-ram-gauge-arc" d="M 25 115 A 85 85 0 0 1 195 115" fill="none" stroke="#4F7A59" stroke-width="18" stroke-linecap="round" stroke-dasharray="267" stroke-dashoffset="200"></path>
+                    <path class="ram-gauge-track" d="M 25 115 A 85 85 0 0 1 195 115" fill="none" stroke-width="18" stroke-linecap="round"></path>
+                    <path id="dash-ram-gauge-arc" class="ram-gauge-arc" d="M 25 115 A 85 85 0 0 1 195 115" fill="none" stroke-width="18" stroke-linecap="round" stroke-dasharray="267" stroke-dashoffset="200"></path>
                     <text x="110" y="88" text-anchor="middle" class="gauge-value-text" id="dash-ram-gauge-pct">--%</text>
                     <text x="110" y="112" text-anchor="middle" class="gauge-sub-text" id="dash-ram-gauge-mb">-- / 8192 MB</text>
                   </svg>
@@ -1209,11 +1209,11 @@
               </div>
             </div>
 
-            <div class="chart-legend" aria-hidden="true">
-              <span class="legend-item"><span class="legend-swatch swatch-forest"></span> Série Histórica Realizada</span>
-              <span class="legend-item"><span class="legend-swatch swatch-natural"></span> Previsão do Modelo</span>
-              <span class="legend-item"><span class="legend-swatch swatch-terracotta"></span> Referência Naive Baseline</span>
-              <span class="legend-item"><span class="legend-swatch swatch-mint"></span> Intervalo de Confiança 90% (P10–P90)</span>
+            <div class="chart-legend" role="list" aria-label="Legenda do gráfico preditivo">
+              <span class="legend-item" role="listitem"><span class="legend-swatch swatch-forest" aria-hidden="true"></span> Série Histórica Realizada</span>
+              <span class="legend-item" role="listitem"><span class="legend-swatch swatch-natural" aria-hidden="true"></span> Previsão do Modelo</span>
+              <span class="legend-item" role="listitem"><span class="legend-swatch swatch-terracotta" aria-hidden="true"></span> Referência Naive Baseline</span>
+              <span class="legend-item" role="listitem"><span class="legend-swatch swatch-mint" aria-hidden="true"></span> Intervalo de Confiança 90% (P10–P90)</span>
             </div>
 
             <div id="predictive-svg-container" class="svg-chart-container" role="img" aria-label="Gráfico preditivo com histórico, previsão e intervalo de confiança de 90 por cento">
