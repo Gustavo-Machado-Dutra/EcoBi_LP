@@ -45,7 +45,7 @@ def _slugify(text: str) -> str:
 # Especificação de Medidas DAX Oficiais
 # ============================================================================
 
-OFFICIAL_DAX_MEASURES: List[Dict[str, Any]] = [
+OPERATIONAL_DAX_MEASURES: List[Dict[str, Any]] = [
     {
         "name": "Faturamento Liquido",
         "expression": "SUM(FactOperacoesMensais[ReceitaLiquida])",
@@ -100,12 +100,18 @@ OFFICIAL_DAX_MEASURES: List[Dict[str, Any]] = [
         "formatString": "0.00\\%",
         "description": "Índice de devoluções por logística reversa em relação ao volume de entregas.",
     },
+]
+
+PREDICTIVE_DAX_MEASURES: List[Dict[str, Any]] = [
     {
         "name": "WAPE Modelo %",
         "expression": "AVERAGE(FactPrevisoes[WAPE_Modelo]) * 100",
         "formatString": "0.00\\%",
         "description": "Erro percentual ponderado absoluto médio do modelo preditivo.",
     },
+]
+
+SIMULATION_DAX_MEASURES: List[Dict[str, Any]] = [
     {
         "name": "Emissoes Evitadas Simuladas tCO2e",
         "expression": "SUM(FactSimulacoes[EmissoesEvitadasTCO2e])",
@@ -119,6 +125,10 @@ OFFICIAL_DAX_MEASURES: List[Dict[str, Any]] = [
         "description": "Economia financeira projetada acumulada nas simulações.",
     },
 ]
+
+OFFICIAL_DAX_MEASURES: List[Dict[str, Any]] = (
+    OPERATIONAL_DAX_MEASURES + PREDICTIVE_DAX_MEASURES + SIMULATION_DAX_MEASURES
+)
 
 
 # ============================================================================
@@ -156,8 +166,21 @@ def _build_theme_json() -> Dict[str, Any]:
 # Construtor do Modelo Semântico (model.bim)
 # ============================================================================
 
-def _build_model_bim(slug: str) -> Dict[str, Any]:
+def _csv_m_expression(filename: str) -> str:
+    """Constrói expressão Power Query (M) com promoção automática de cabeçalhos via parâmetro PastaDados."""
+    return (
+        "let\n"
+        f'    Source = Csv.Document(File.Contents(PastaDados & "\\{filename}"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),\n'
+        "    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true])\n"
+        "in\n"
+        "    PromotedHeaders"
+    )
+
+
+def _build_model_bim(slug: str, data_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Gera o schema tabular completo do modelo semântico (model.bim compatibilidade 1567)."""
+    resolved_data_dir = str(data_dir.resolve()) if data_dir is not None else "data"
+    escaped_data_dir = resolved_data_dir.replace('"', '""')
     return {
         "name": f"{slug}_SemanticModel",
         "compatibilityLevel": 1567,
@@ -168,6 +191,13 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                 "returnErrorValuesAsNull": True,
             },
             "defaultPowerBIDataSourceVersion": "powerBI_V3",
+            "expressions": [
+                {
+                    "name": "PastaDados",
+                    "kind": "m",
+                    "expression": f'"{escaped_data_dir}" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]',
+                }
+            ],
             "tables": [
                 {
                     "name": "DimCalendario",
@@ -182,7 +212,7 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                         {
                             "name": "DimCalendario-Partition",
                             "mode": "import",
-                            "source": {"type": "m", "expression": f'Csv.Document(File.Contents("data/DimCalendario.csv"),[Delimiter=",", Encoding=65001])'},
+                            "source": {"type": "m", "expression": _csv_m_expression("DimCalendario.csv")},
                         }
                     ],
                 },
@@ -210,12 +240,12 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                         {"name": "TotalGrossEmissionsCO2eTons", "dataType": "double", "sourceColumn": "TotalGrossEmissionsCO2eTons"},
                         {"name": "CreditosCarbonoTCO2e", "dataType": "double", "sourceColumn": "CreditosCarbonoTCO2e"},
                     ],
-                    "measures": OFFICIAL_DAX_MEASURES,
+                    "measures": OPERATIONAL_DAX_MEASURES,
                     "partitions": [
                         {
                             "name": "FactOperacoesMensais-Partition",
                             "mode": "import",
-                            "source": {"type": "m", "expression": f'Csv.Document(File.Contents("data/FactOperacoesMensais.csv"),[Delimiter=",", Encoding=65001])'},
+                            "source": {"type": "m", "expression": _csv_m_expression("FactOperacoesMensais.csv")},
                         }
                     ],
                 },
@@ -230,11 +260,12 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                         {"name": "WAPE_Modelo", "dataType": "double", "sourceColumn": "WAPE_Modelo"},
                         {"name": "WAPE_Baseline", "dataType": "double", "sourceColumn": "WAPE_Baseline"},
                     ],
+                    "measures": PREDICTIVE_DAX_MEASURES,
                     "partitions": [
                         {
                             "name": "FactPrevisoes-Partition",
                             "mode": "import",
-                            "source": {"type": "m", "expression": f'Csv.Document(File.Contents("data/FactPrevisoes.csv"),[Delimiter=",", Encoding=65001])'},
+                            "source": {"type": "m", "expression": _csv_m_expression("FactPrevisoes.csv")},
                         }
                     ],
                 },
@@ -248,11 +279,12 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                         {"name": "InvestimentoAmbientalBRL", "dataType": "double", "sourceColumn": "InvestimentoAmbientalBRL"},
                         {"name": "NovaEmissaoTotalTCO2e", "dataType": "double", "sourceColumn": "NovaEmissaoTotalTCO2e"},
                     ],
+                    "measures": SIMULATION_DAX_MEASURES,
                     "partitions": [
                         {
                             "name": "FactSimulacoes-Partition",
                             "mode": "import",
-                            "source": {"type": "m", "expression": f'Csv.Document(File.Contents("data/FactSimulacoes.csv"),[Delimiter=",", Encoding=65001])'},
+                            "source": {"type": "m", "expression": _csv_m_expression("FactSimulacoes.csv")},
                         }
                     ],
                 },
@@ -270,7 +302,7 @@ def _build_model_bim(slug: str) -> Dict[str, Any]:
                         {
                             "name": "DimValidacao-Partition",
                             "mode": "import",
-                            "source": {"type": "m", "expression": f'Csv.Document(File.Contents("data/DimValidacao.csv"),[Delimiter=",", Encoding=65001])'},
+                            "source": {"type": "m", "expression": _csv_m_expression("DimValidacao.csv")},
                         }
                     ],
                 },
@@ -331,23 +363,23 @@ def _build_report_json() -> Dict[str, Any]:
                 "visualContainers": [
                     {
                         "x": 20, "y": 20, "width": 300, "height": 140, "z": 1000,
-                        "config": json.dumps({"name": "CardFaturamentoLiquido", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Faturamento Liquido"}]}}}),
+                        "config": json.dumps({"name": "CardExecFaturamento", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Faturamento Liquido"}]}}}),
                     },
                     {
                         "x": 340, "y": 20, "width": 300, "height": 140, "z": 1001,
-                        "config": json.dumps({"name": "CardCustoTotal", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Custo Total"}]}}}),
+                        "config": json.dumps({"name": "CardExecLucro", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Lucro Operacional"}]}}}),
                     },
                     {
                         "x": 660, "y": 20, "width": 300, "height": 140, "z": 1002,
-                        "config": json.dumps({"name": "CardLucroOperacional", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Lucro Operacional"}]}}}),
+                        "config": json.dumps({"name": "CardExecEmissoes", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Emissoes Brutas tCO2e"}]}}}),
                     },
                     {
                         "x": 980, "y": 20, "width": 280, "height": 140, "z": 1003,
-                        "config": json.dumps({"name": "CardMargemLiquida", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Margem Liquida %"}]}}}),
+                        "config": json.dumps({"name": "CardExecReciclagem", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Taxa Reciclagem %"}]}}}),
                     },
                     {
                         "x": 20, "y": 180, "width": 1240, "height": 500, "z": 1004,
-                        "config": json.dumps({"name": "ChartEvolucaoFinanceira", "singleVisual": {"visualType": "lineChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.ReceitaLiquida"}, {"queryRef": "FactOperacoesMensais.CustoTotal"}, {"queryRef": "FactOperacoesMensais.LucroOperacional"}]}}}),
+                        "config": json.dumps({"name": "TableValidacaoGovernanca", "singleVisual": {"visualType": "tableEx", "projections": {"Values": [{"queryRef": "DimValidacao.IdAnalise"}, {"queryRef": "DimValidacao.StatusValidacao"}, {"queryRef": "DimValidacao.DataValidacao"}, {"queryRef": "DimValidacao.TotalRegras"}, {"queryRef": "DimValidacao.RegrasAprovadas"}, {"queryRef": "DimValidacao.Ressalvas"}]}}}),
                     },
                 ],
                 "width": 1280,
@@ -360,24 +392,24 @@ def _build_report_json() -> Dict[str, Any]:
                 "ordinal": 1,
                 "visualContainers": [
                     {
-                        "x": 20, "y": 20, "width": 380, "height": 140, "z": 2000,
-                        "config": json.dumps({"name": "CardEmissoesBrutas", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Emissoes Brutas tCO2e"}]}}}),
+                        "x": 20, "y": 20, "width": 300, "height": 140, "z": 2000,
+                        "config": json.dumps({"name": "CardFaturamentoLiquido", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Faturamento Liquido"}]}}}),
                     },
                     {
-                        "x": 420, "y": 20, "width": 380, "height": 140, "z": 2001,
-                        "config": json.dumps({"name": "CardCreditosCarbono", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Creditos Carbono Separados tCO2e"}]}}}),
+                        "x": 340, "y": 20, "width": 300, "height": 140, "z": 2001,
+                        "config": json.dumps({"name": "CardCustoTotal", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Custo Total"}]}}}),
                     },
                     {
-                        "x": 820, "y": 20, "width": 440, "height": 140, "z": 2002,
-                        "config": json.dumps({"name": "CardTaxaReciclagem", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Taxa Reciclagem %"}]}}}),
+                        "x": 660, "y": 20, "width": 300, "height": 140, "z": 2002,
+                        "config": json.dumps({"name": "CardLucroOperacional", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Lucro Operacional"}]}}}),
                     },
                     {
-                        "x": 20, "y": 180, "width": 600, "height": 500, "z": 2003,
-                        "config": json.dumps({"name": "ChartEmissoesPorEscopo", "singleVisual": {"visualType": "columnChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.Scope1CO2eTons"}, {"queryRef": "FactOperacoesMensais.Scope2CO2eTons"}, {"queryRef": "FactOperacoesMensais.Scope3CO2eTons"}]}}}),
+                        "x": 980, "y": 20, "width": 280, "height": 140, "z": 2003,
+                        "config": json.dumps({"name": "CardMargemLiquida", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Margem Liquida %"}]}}}),
                     },
                     {
-                        "x": 640, "y": 180, "width": 620, "height": 500, "z": 2004,
-                        "config": json.dumps({"name": "ChartResiduosReciclagem", "singleVisual": {"visualType": "lineChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.ResiduosGeradosKg"}, {"queryRef": "FactOperacoesMensais.ResiduosRecicladosKg"}]}}}),
+                        "x": 20, "y": 180, "width": 1240, "height": 500, "z": 2004,
+                        "config": json.dumps({"name": "ChartEvolucaoFinanceira", "singleVisual": {"visualType": "lineChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.ReceitaLiquida"}, {"queryRef": "FactOperacoesMensais.CustoTotal"}, {"queryRef": "FactOperacoesMensais.LucroOperacional"}]}}}),
                     },
                 ],
                 "width": 1280,
@@ -390,20 +422,24 @@ def _build_report_json() -> Dict[str, Any]:
                 "ordinal": 2,
                 "visualContainers": [
                     {
-                        "x": 20, "y": 20, "width": 400, "height": 140, "z": 3000,
-                        "config": json.dumps({"name": "CardWapeModelo", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactPrevisoes.WAPE Modelo %"}]}}}),
+                        "x": 20, "y": 20, "width": 380, "height": 140, "z": 3000,
+                        "config": json.dumps({"name": "CardEmissoesBrutas", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Emissoes Brutas tCO2e"}]}}}),
                     },
                     {
-                        "x": 440, "y": 20, "width": 400, "height": 140, "z": 3001,
-                        "config": json.dumps({"name": "CardEconomiaSimulada", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactSimulacoes.Economia Projetada BRL"}]}}}),
+                        "x": 420, "y": 20, "width": 380, "height": 140, "z": 3001,
+                        "config": json.dumps({"name": "CardCreditosCarbono", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Creditos Carbono Separados tCO2e"}]}}}),
                     },
                     {
-                        "x": 860, "y": 20, "width": 400, "height": 140, "z": 3002,
-                        "config": json.dumps({"name": "CardEmissoesEvitadas", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactSimulacoes.Emissoes Evitadas Simuladas tCO2e"}]}}}),
+                        "x": 820, "y": 20, "width": 440, "height": 140, "z": 3002,
+                        "config": json.dumps({"name": "CardTaxaReciclagem", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactOperacoesMensais.Taxa Reciclagem %"}]}}}),
                     },
                     {
-                        "x": 20, "y": 180, "width": 1240, "height": 500, "z": 3003,
-                        "config": json.dumps({"name": "TableCenariosSimulados", "singleVisual": {"visualType": "tableEx", "projections": {"Values": [{"queryRef": "FactSimulacoes.CenarioNome"}, {"queryRef": "FactSimulacoes.EconomiaProjetadaBRL"}, {"queryRef": "FactSimulacoes.EmissoesEvitadasTCO2e"}, {"queryRef": "FactSimulacoes.NovaEmissaoTotalTCO2e"}]}}}),
+                        "x": 20, "y": 180, "width": 600, "height": 500, "z": 3003,
+                        "config": json.dumps({"name": "ChartEmissoesPorEscopo", "singleVisual": {"visualType": "columnChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.Scope1CO2eTons"}, {"queryRef": "FactOperacoesMensais.Scope2CO2eTons"}, {"queryRef": "FactOperacoesMensais.Scope3CO2eTons"}]}}}),
+                    },
+                    {
+                        "x": 640, "y": 180, "width": 620, "height": 500, "z": 3004,
+                        "config": json.dumps({"name": "ChartResiduosReciclagem", "singleVisual": {"visualType": "lineChart", "projections": {"Category": [{"queryRef": "DimCalendario.Periodo"}], "Y": [{"queryRef": "FactOperacoesMensais.ResiduosGeradosKg"}, {"queryRef": "FactOperacoesMensais.ResiduosRecicladosKg"}]}}}),
                     },
                 ],
                 "width": 1280,
@@ -416,9 +452,21 @@ def _build_report_json() -> Dict[str, Any]:
                 "ordinal": 3,
                 "visualContainers": [
                     {
-                        "x": 20, "y": 20, "width": 1240, "height": 660, "z": 4000,
-                        "config": json.dumps({"name": "TableValidacaoGovernanca", "singleVisual": {"visualType": "tableEx", "projections": {"Values": [{"queryRef": "DimValidacao.IdAnalise"}, {"queryRef": "DimValidacao.StatusValidacao"}, {"queryRef": "DimValidacao.DataValidacao"}, {"queryRef": "DimValidacao.TotalRegras"}, {"queryRef": "DimValidacao.RegrasAprovadas"}, {"queryRef": "DimValidacao.Ressalvas"}]}}}),
-                    }
+                        "x": 20, "y": 20, "width": 400, "height": 140, "z": 4000,
+                        "config": json.dumps({"name": "CardWapeModelo", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactPrevisoes.WAPE Modelo %"}]}}}),
+                    },
+                    {
+                        "x": 440, "y": 20, "width": 400, "height": 140, "z": 4001,
+                        "config": json.dumps({"name": "CardEconomiaSimulada", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactSimulacoes.Economia Projetada BRL"}]}}}),
+                    },
+                    {
+                        "x": 860, "y": 20, "width": 400, "height": 140, "z": 4002,
+                        "config": json.dumps({"name": "CardEmissoesEvitadas", "singleVisual": {"visualType": "card", "projections": {"Values": [{"queryRef": "FactSimulacoes.Emissoes Evitadas Simuladas tCO2e"}]}}}),
+                    },
+                    {
+                        "x": 20, "y": 180, "width": 1240, "height": 500, "z": 4003,
+                        "config": json.dumps({"name": "TableCenariosSimulados", "singleVisual": {"visualType": "tableEx", "projections": {"Values": [{"queryRef": "FactSimulacoes.CenarioNome"}, {"queryRef": "FactSimulacoes.EconomiaProjetadaBRL"}, {"queryRef": "FactSimulacoes.EmissoesEvitadasTCO2e"}, {"queryRef": "FactSimulacoes.NovaEmissaoTotalTCO2e"}]}}}),
+                    },
                 ],
                 "width": 1280,
                 "height": 720,
@@ -465,10 +513,23 @@ def validate_pbip_bundle(
 
     # Validação do SemanticModel
     sem_dirs = list(base_dir.glob("*.SemanticModel"))
+    table_fields: Dict[str, set[str]] = {}
     if not sem_dirs:
         discrepancies.append("Pasta *.SemanticModel ausente.")
     else:
         sem_dir = sem_dirs[0]
+        pbism_path = sem_dir / "definition.pbism"
+        if not pbism_path.exists():
+            discrepancies.append("definition.pbism ausente no SemanticModel.")
+        else:
+            try:
+                with open(pbism_path, "r", encoding="utf-8") as f:
+                    pbism_data = json.load(f)
+                    if str(pbism_data.get("version", "")) not in ("1.0", "4.0"):
+                        discrepancies.append(f"Versão inválida no definition.pbism: {pbism_data.get('version')}")
+            except Exception as e:
+                discrepancies.append(f"Erro de parsing no definition.pbism: {e}")
+
         model_bim_path = sem_dir / "model.bim"
         if not model_bim_path.exists():
             discrepancies.append("model.bim ausente no SemanticModel.")
@@ -485,10 +546,20 @@ def validate_pbip_bundle(
                     if not expected_tables.issubset(table_names):
                         discrepancies.append(f"Tabelas ausentes no model.bim. Esperado: {expected_tables}; Encontrado: {table_names}")
 
-                    # Contagem de medidas DAX
+                    # Contagem de medidas DAX, mapeamento de campos e validação M
                     all_measures = []
                     for t in tables:
+                        t_name = t["name"]
+                        cols = {c["name"] for c in t.get("columns", [])}
+                        meas = {m["name"] for m in t.get("measures", [])}
+                        table_fields[t_name] = cols | meas
                         all_measures.extend(t.get("measures", []))
+                        for part in t.get("partitions", []):
+                            m_expr = str(part.get("source", {}).get("expression", ""))
+                            if "Table.PromoteHeaders" not in m_expr or "File.Contents" not in m_expr:
+                                discrepancies.append(
+                                    f"Partição '{part.get('name', t_name)}' sem Table.PromoteHeaders/File.Contents válido."
+                                )
                     if len(all_measures) < 10:
                         discrepancies.append(f"Poucas medidas DAX encontradas ({len(all_measures)} < 10).")
 
@@ -505,6 +576,19 @@ def validate_pbip_bundle(
         discrepancies.append("Pasta *.Report ausente.")
     else:
         rep_dir = rep_dirs[0]
+        pbir_path = rep_dir / "definition.pbir"
+        if not pbir_path.exists():
+            discrepancies.append("definition.pbir ausente no Report.")
+        else:
+            try:
+                with open(pbir_path, "r", encoding="utf-8") as f:
+                    pbir_data = json.load(f)
+                    by_path = pbir_data.get("datasetReference", {}).get("byPath", {}).get("path", "")
+                    if not by_path or not (rep_dir / by_path).resolve().exists():
+                        discrepancies.append(f"datasetReference.byPath inválido no definition.pbir: '{by_path}'")
+            except Exception as e:
+                discrepancies.append(f"Erro de parsing no definition.pbir: {e}")
+
         report_json_path = rep_dir / "report.json"
         if not report_json_path.exists():
             discrepancies.append("report.json ausente no Report.")
@@ -515,6 +599,21 @@ def validate_pbip_bundle(
                     sections = rep_data.get("sections", [])
                     if len(sections) < 4:
                         discrepancies.append(f"Poucas páginas no report.json ({len(sections)} < 4).")
+                    if table_fields:
+                        for sec in sections:
+                            for vc in sec.get("visualContainers", []):
+                                vc_cfg = vc.get("config", "{}")
+                                cfg_obj = json.loads(vc_cfg) if isinstance(vc_cfg, str) else vc_cfg
+                                projections = cfg_obj.get("singleVisual", {}).get("projections", {})
+                                for proj_items in projections.values():
+                                    for item in proj_items:
+                                        qref = str(item.get("queryRef", ""))
+                                        if "." in qref:
+                                            t_ref, f_ref = qref.split(".", 1)
+                                            if t_ref not in table_fields or f_ref not in table_fields[t_ref]:
+                                                discrepancies.append(
+                                                    f"Referência visual inválida '{qref}' na página '{sec.get('displayName')}'."
+                                                )
             except Exception as e:
                 discrepancies.append(f"Erro de parsing no report.json: {e}")
 
@@ -893,7 +992,7 @@ def generate_pbip_project(
         json.dump(pbism_content, f, indent=2, ensure_ascii=False)
 
     # <Slug>.SemanticModel/model.bim
-    model_bim_content = _build_model_bim(slug)
+    model_bim_content = _build_model_bim(slug, data_dir=data_dir)
     with open(sem_model_dir / "model.bim", "w", encoding="utf-8") as f:
         json.dump(model_bim_content, f, indent=2, ensure_ascii=False)
 

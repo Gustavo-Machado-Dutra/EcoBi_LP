@@ -291,3 +291,90 @@ def test_pbip_deduplicates_repeated_analyses_preserving_source_period_rows(
     assert generated["reconciliation"]["receita_bruta_total"] == pytest.approx(
         analysis_result["financial_kpis"]["receita_bruta_total"], abs=0.01
     )
+
+
+def test_pbip_queryrefs_match_model_tables_and_m_promotes_headers(
+    client: TestClient,
+    auth_headers: Dict[str, str],
+    sample_paths: Dict[str, Path],
+) -> None:
+    proj_resp = client.post(
+        "/api/projects",
+        json={"name": "EcoBI PowerBI Schema Alignment", "sector": "Varejo", "currency": "BRL"},
+        headers=auth_headers,
+    )
+    assert proj_resp.status_code == 201
+    project_id = proj_resp.json()["id"]
+
+    with open(sample_paths["piloto"], "rb") as f:
+        up_resp = client.post(
+            f"/api/projects/{project_id}/datasets/upload",
+            files={"file": ("piloto_schema.csv", f, "text/csv")},
+            headers=auth_headers,
+        )
+    dataset_id = up_resp.json()["dataset"]["id"]
+
+    fin_res = analytics.run_financial_esg_analysis(project_id=project_id, dataset_id=dataset_id, actor="qa_tester")
+    validation_engine.validate_analysis(project_id, fin_res["analysis_id"], actor="qa_auditor")
+
+    generated = powerbi_generator.generate_pbip_project(
+        project_id=project_id,
+        analysis_ids=[fin_res["analysis_id"]],
+        report_title="SchemaCheck",
+        actor="qa_tester",
+    )
+    bundle_dir = Path(generated["bundle_dir"])
+    bim = json.loads((bundle_dir / "SchemaCheck.SemanticModel" / "model.bim").read_text(encoding="utf-8"))
+    rep = json.loads((bundle_dir / "SchemaCheck.Report" / "report.json").read_text(encoding="utf-8"))
+    pbir = json.loads((bundle_dir / "SchemaCheck.Report" / "definition.pbir").read_text(encoding="utf-8"))
+
+    by_path = pbir["datasetReference"]["byPath"]["path"]
+    assert (bundle_dir / "SchemaCheck.Report" / by_path).resolve().is_dir()
+
+    model_obj = bim["model"]
+    expressions = {e["name"]: e["expression"] for e in model_obj.get("expressions", [])}
+    assert "PastaDados" in expressions
+    assert str((bundle_dir / "data").resolve()) in expressions["PastaDados"]
+
+    fields_by_table = {}
+    for table in model_obj["tables"]:
+        fields_by_table[table["name"]] = {c["name"] for c in table.get("columns", [])} | {
+            m["name"] for m in table.get("measures", [])
+        }
+        for part in table.get("partitions", []):
+            expr = part["source"]["expression"]
+            assert "Table.PromoteHeaders" in expr
+            assert "PastaDados" in expr
+
+    assert "WAPE Modelo %" in fields_by_table["FactPrevisoes"]
+    assert "Economia Projetada BRL" in fields_by_table["FactSimulacoes"]
+    assert "Emissoes Evitadas Simuladas tCO2e" in fields_by_table["FactSimulacoes"]
+
+    sections_by_name = {s["displayName"]: s for s in rep["sections"]}
+    assert any(
+        "TableValidacaoGovernanca" in vc["config"]
+        for vc in sections_by_name["Visão Executiva & Governança"]["visualContainers"]
+    )
+    assert any(
+        "ChartEvolucaoFinanceira" in vc["config"]
+        for vc in sections_by_name["Performance Financeira & Margens"]["visualContainers"]
+    )
+    assert any(
+        "ChartEmissoesPorEscopo" in vc["config"]
+        for vc in sections_by_name["Contabilidade ESG & GHG Protocol"]["visualContainers"]
+    )
+    assert any(
+        "TableCenariosSimulados" in vc["config"]
+        for vc in sections_by_name["Previsões & Simulações What-If"]["visualContainers"]
+    )
+
+    for sec in rep["sections"]:
+        for vc in sec["visualContainers"]:
+            cfg = json.loads(vc["config"])
+            for proj_items in cfg["singleVisual"]["projections"].values():
+                for item in proj_items:
+                    t_name, f_name = item["queryRef"].split(".", 1)
+                    assert f_name in fields_by_table[t_name], f"Missing {item['queryRef']}"
+
+    validation = powerbi_generator.validate_pbip_bundle(bundle_dir)
+    assert validation["valid"] is True, validation["discrepancies"]
