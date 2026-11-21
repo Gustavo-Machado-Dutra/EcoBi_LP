@@ -8,20 +8,13 @@ echo =======================================================
 
 cd /d "%~dp0\.."
 
-if exist ".venv\Scripts\python.exe" (
-    set "PYTHON_EXEC=.venv\Scripts\python.exe"
-) else (
-    set "PYTHON_EXEC=python"
-)
-
-echo Usando runtime Python: %PYTHON_EXEC%
-
-"%PYTHON_EXEC%" scripts\ecobi_launcher.py %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_ecobi.ps1" %*
 
 if errorlevel 1 (
     echo.
     echo [ERRO] Falha ao iniciar o EcoBI Intelligence. Verifique os logs em data\logs\ecobi.log.
     pause
+    exit /b 1
 )
 
 endlocal

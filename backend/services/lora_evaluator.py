@@ -197,7 +197,7 @@ async def _default_run_adapter_inference(
             "temperature": 0.0,
         },
     }
-    async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec)) as client:
+    async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec), trust_env=False) as client:
         resp = await client.post(chat_url, json=payload)
         if resp.status_code != 200:
             raise httpx.HTTPStatusError(
@@ -231,7 +231,7 @@ async def _check_adapter_runtime_available(
     """Inspeciona conectividade do Ollama e existência da tag do adaptador LoRA via /api/tags."""
     tags_url = f"{ollama_url.rstrip('/')}/api/tags"
     try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec)) as client:
+        async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec), trust_env=False) as client:
             resp = await client.get(tags_url)
             if resp.status_code != 200:
                 return (

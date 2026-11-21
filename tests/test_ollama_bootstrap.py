@@ -32,14 +32,24 @@ def run_bootstrap(tmp_path: Path, scenario: str) -> dict:
             InstallCount = 0
             PullCount = 0
             StartCount = 0
+            CheckApiCount = 0
             HostTargets = @()
             LastInstallPath = ''
             ConfirmCount = 0
             CliCount = 0
             ListenerAddresses = @()
+            FreeSpaceBytes = 50GB
         }}
         $resolve = {{ param($path) if ($script:state.Installed) {{ return (Join-Path $path 'ollama.exe') }}; return $null }}
-        $download = {{ param($uri, $destination) $script:state.DownloadCount++; [IO.Directory]::CreateDirectory((Split-Path $destination)) | Out-Null; [IO.File]::WriteAllText($destination, 'signed-installer') }}
+        $freeSpace = {{ param($path) return $script:state.FreeSpaceBytes }}
+        $download = {{
+            param($uri, $destination)
+            $script:state.DownloadCount++
+            [IO.Directory]::CreateDirectory((Split-Path $destination)) | Out-Null
+            if ('{scenario}' -eq 'empty-installer') {{ [IO.File]::WriteAllText($destination, '') }}
+            elseif ('{scenario}' -eq 'download-fails') {{ throw 'Network connection reset' }}
+            else {{ [IO.File]::WriteAllText($destination, 'signed-installer') }}
+        }}
         $verify = {{ param($path) $script:state.VerifyCount++; return $script:state.Signature }}
         $install = {{ param($path, $directory) $script:state.InstallCount++; if ('{scenario}' -eq 'install-fails') {{ return 5 }}; $script:state.Installed = $true; $script:state.LastInstallPath = $directory; [IO.Directory]::CreateDirectory($directory) | Out-Null; [IO.File]::WriteAllText((Join-Path $directory 'ollama.exe'), 'mock executable'); return 0 }}
         $getListeners = {{ return @($script:state.ListenerAddresses) }}
@@ -55,15 +65,31 @@ def run_bootstrap(tmp_path: Path, scenario: str) -> dict:
             }}
             if ($arguments[0] -eq 'pull') {{
                 $script:state.PullCount++
-                if ('{scenario}' -ne 'pull-fails') {{ $script:state.Model = $true; return @{{ ExitCode = 0; Output = 'pulled' }} }}
+                if ('{scenario}' -notin @('pull-fails', 'api-missing-model')) {{ $script:state.Model = $true; return @{{ ExitCode = 0; Output = 'pulled' }} }}
+                if ('{scenario}' -eq 'api-missing-model') {{ return @{{ ExitCode = 0; Output = 'pulled' }} }}
                 return @{{ ExitCode = 1; Output = 'download failed' }}
             }}
             return @{{ ExitCode = 1; Output = 'unsupported' }}
         }}
-        $start = {{ param($executable) $script:state.StartCount++; $script:state.ServerReady = $true; $script:state.ListenerAddresses = @('127.0.0.1') }}
+        $checkApi = {{
+            $script:state.CheckApiCount++
+            if ('{scenario}' -eq 'api-probe-fails') {{ throw 'API 11434 unreachable' }}
+            if (-not $script:state.ServerReady) {{ throw 'API not ready' }}
+            if ('{scenario}' -eq 'api-missing-model') {{ return @() }}
+            if ($script:state.Model) {{ return @('qwen3.5:4b') }}
+            return @()
+        }}
+        $start = {{
+            param($executable)
+            $script:state.StartCount++
+            if ('{scenario}' -ne 'server-never-starts') {{
+                $script:state.ServerReady = $true
+                $script:state.ListenerAddresses = @('127.0.0.1')
+            }}
+        }}
         $sleep = {{ }}
         $confirm = {{ param($message) $script:state.ConfirmCount++; return ('{scenario}' -notin @('decline-install', 'decline-model')) }}
-        if ('{scenario}' -in @('installed', 'untrusted-installed', 'external-listener', 'private-listener')) {{ $script:state.Installed = $true; $script:state.Model = $true; $script:state.ServerReady = $true; $script:state.ListenerAddresses = @('127.0.0.1') }}
+        if ('{scenario}' -in @('installed', 'untrusted-installed', 'external-listener', 'private-listener', 'api-probe-fails')) {{ $script:state.Installed = $true; $script:state.Model = $true; $script:state.ServerReady = $true; $script:state.ListenerAddresses = @('127.0.0.1') }}
         if ('{scenario}' -eq 'external-listener') {{ $script:state.ListenerAddresses = @('0.0.0.0') }}
         if ('{scenario}' -eq 'private-listener') {{ $script:state.ListenerAddresses = @('192.168.1.25') }}
         if ('{scenario}' -eq 'inspection-fails') {{ $getListeners = {{ throw 'Listener inspection unavailable' }} }}
@@ -72,10 +98,29 @@ def run_bootstrap(tmp_path: Path, scenario: str) -> dict:
         if ('{scenario}' -eq 'missing-model-check') {{ $script:state.Installed = $true; $script:state.ServerReady = $true }}
         if ('{scenario}' -eq 'signature-fails') {{ $script:state.Signature = $false }}
         if ('{scenario}' -eq 'pull-fails') {{ $script:state.ServerReady = $true }}
+        if ('{scenario}' -eq 'low-disk-install') {{ $script:state.FreeSpaceBytes = 2GB }}
+        if ('{scenario}' -eq 'low-disk-model') {{ $script:state.Installed = $true; $script:state.ServerReady = $true; $script:state.FreeSpaceBytes = 2GB }}
+        if ('{scenario}' -eq 'api-missing-model') {{ $script:state.Installed = $true; $script:state.ServerReady = $true }}
         $originalHost = 'preexisting-user-value'
         $env:OLLAMA_HOST = $originalHost
-        $params = @{{ ModelName = 'qwen3.5:4b'; InstallDirectory = '{install_path}'; TempDirectory = '{temp_path}'; ResolveExecutable = $resolve; DownloadInstaller = $download; VerifySignature = $verify; InstallAction = $install; GetListenerAddresses = $getListeners; RunCli = $cli; StartServer = $start; Sleep = $sleep; ConfirmSetup = $confirm }}
+        $params = @{{
+            ModelName = 'qwen3.5:4b'
+            InstallDirectory = '{install_path}'
+            TempDirectory = '{temp_path}'
+            ResolveExecutable = $resolve
+            GetFreeSpaceBytes = $freeSpace
+            DownloadInstaller = $download
+            VerifySignature = $verify
+            InstallAction = $install
+            GetListenerAddresses = $getListeners
+            RunCli = $cli
+            CheckApi = $checkApi
+            StartServer = $start
+            Sleep = $sleep
+            ConfirmSetup = $confirm
+        }}
         if ('{scenario}' -in @('missing-model-check', 'absent-check')) {{ $params.CheckOnly = $true }}
+        if ('{scenario}' -eq 'auto-approve') {{ $params.AutoApprove = $true }}
         if ('{scenario}' -eq 'invalid-model') {{ $params.ModelName = '../remote' }}
         $ready = Initialize-EcoBIOllama @params
         $restoredHost = $env:OLLAMA_HOST
@@ -83,6 +128,7 @@ def run_bootstrap(tmp_path: Path, scenario: str) -> dict:
         @{{ Ready = [bool]$ready; State = $script:state; RestoredHost = $restoredHost; InstallerExists = $installerExists }} | ConvertTo-Json -Compress -Depth 5 | Write-Output
         """
     ).strip()
+    tmp_path.mkdir(parents=True, exist_ok=True)
     harness_path = tmp_path / "bootstrap-test.ps1"
     harness_path.write_text(harness, encoding="utf-8")
     environment = os.environ.copy()
@@ -109,6 +155,7 @@ def test_installed_local_model_is_reused_without_download_or_pull(tmp_path: Path
     assert result["State"]["DownloadCount"] == 0
     assert result["State"]["InstallCount"] == 0
     assert result["State"]["PullCount"] == 0
+    assert result["State"]["CheckApiCount"] == 1
     assert result["RestoredHost"] == "preexisting-user-value"
     assert set(result["State"]["HostTargets"]) == {"127.0.0.1:11434"}
 
@@ -121,6 +168,7 @@ def test_missing_ollama_is_signed_installed_locally_and_pulls_only_default_model
     assert result["State"]["InstallCount"] == 1
     assert result["State"]["PullCount"] == 1
     assert result["State"]["StartCount"] == 1
+    assert result["State"]["CheckApiCount"] == 1
     assert result["State"]["LastInstallPath"].endswith("Programs\\Ollama")
     assert result["InstallerExists"] is False
     assert set(result["State"]["HostTargets"]) == {"127.0.0.1:11434"}
@@ -173,7 +221,6 @@ def test_untrusted_existing_ollama_is_not_executed_or_replaced(tmp_path: Path) -
     assert result["State"]["HostTargets"] == []
 
 
-
 def test_source_launcher_invokes_shared_bootstrap_with_configured_model(monkeypatch, tmp_path: Path) -> None:
     from scripts import ecobi_launcher
     from unittest.mock import Mock
@@ -191,7 +238,7 @@ def test_source_launcher_invokes_shared_bootstrap_with_configured_model(monkeypa
     ecobi_launcher.prepare_local_ai_runtime(Mock(), check_only=True)
 
     command = run.call_args.args[0]
-    assert command[:5] == ["powershell.exe", "-NoLogo", "-NoProfile", "-File", str(helper)]
+    assert command[:7] == ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(helper)]
     assert "-ModelName" in command
     assert ecobi_launcher.config.DEFAULT_MODEL in command
     assert command[-1] == "-CheckOnly"
@@ -220,7 +267,6 @@ def test_packaged_launcher_resolves_bundled_bootstrap_asset(monkeypatch, tmp_pat
     assert "-CheckOnly" not in run.call_args.args[0]
 
 
-
 def test_installer_failure_keeps_local_fallback_and_cleans_download(tmp_path: Path) -> None:
     result = run_bootstrap(tmp_path, "install-fails")
     assert result["Ready"] is False
@@ -229,7 +275,6 @@ def test_installer_failure_keeps_local_fallback_and_cleans_download(tmp_path: Pa
     assert result["State"]["InstallCount"] == 1
     assert result["State"]["PullCount"] == 0
     assert result["InstallerExists"] is False
-
 
 
 def test_declining_first_run_setup_performs_no_download_or_install(tmp_path: Path) -> None:
@@ -264,3 +309,65 @@ def test_unverifiable_or_private_ollama_listener_uses_fallback(tmp_path: Path) -
     assert external["State"]["CliCount"] == 0
     assert unverifiable["Ready"] is False
     assert unverifiable["State"]["CliCount"] == 0
+
+
+def test_empty_installer_and_download_error_are_rejected_cleanly(tmp_path: Path) -> None:
+    empty = run_bootstrap(tmp_path, "empty-installer")
+    net_err = run_bootstrap(tmp_path, "download-fails")
+    assert empty["Ready"] is False
+    assert empty["State"]["InstallCount"] == 0
+    assert empty["InstallerExists"] is False
+    assert net_err["Ready"] is False
+    assert net_err["State"]["InstallCount"] == 0
+    assert net_err["InstallerExists"] is False
+
+
+def test_low_disk_space_blocks_install_or_pull_cleanly(tmp_path: Path) -> None:
+    low_install = run_bootstrap(tmp_path / "inst", "low-disk-install")
+    low_model = run_bootstrap(tmp_path / "mdl", "low-disk-model")
+    assert low_install["Ready"] is False
+    assert low_install["State"]["DownloadCount"] == 0
+    assert low_model["Ready"] is False
+    assert low_model["State"]["PullCount"] == 0
+
+
+def test_http_api_probe_failure_or_missing_model_in_api_falls_back(tmp_path: Path) -> None:
+    probe_fail = run_bootstrap(tmp_path / "probe", "api-probe-fails")
+    missing_api = run_bootstrap(tmp_path / "missing", "api-missing-model")
+    assert probe_fail["Ready"] is False
+    assert probe_fail["State"]["CheckApiCount"] == 1
+    assert missing_api["Ready"] is False
+
+
+def test_auto_approve_skips_prompts_and_completes_install_and_pull(tmp_path: Path) -> None:
+    result = run_bootstrap(tmp_path, "auto-approve")
+    assert result["Ready"] is True
+    assert result["State"]["ConfirmCount"] == 0
+    assert result["State"]["InstallCount"] == 1
+    assert result["State"]["PullCount"] == 1
+
+
+def test_default_listener_filter_allows_absent_port_without_error(tmp_path: Path) -> None:
+    helper_path = str(HELPER).replace("'", "''")
+    script = textwrap.dedent(
+        f"""
+        . '{helper_path}' -DefineOnly
+        $absent = Test-EcoBILoopbackListenerAddresses -GetListenerAddresses {{
+            Get-NetTCPConnection -State Listen -ErrorAction Stop |
+                Where-Object {{ $_.LocalPort -eq 59999 }} |
+                Select-Object -ExpandProperty LocalAddress
+        }}
+        Write-Output "ABSENT_OK=$absent"
+        """
+    ).strip()
+    p = tmp_path / "listener-probe.ps1"
+    p.write_text(script, encoding="utf-8")
+    res = subprocess.run(
+        [POWERSHELL, "-NoLogo", "-NoProfile", "-File", str(p)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr + res.stdout
+    assert "ABSENT_OK=True" in res.stdout

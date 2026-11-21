@@ -9,13 +9,16 @@
     Desativa abertura automática do navegador.
 .PARAMETER CheckOnly
     Apenas valida o ambiente e encerra sem subir o servidor.
+.PARAMETER AutoApprove
+    Autoriza instalação automática do Ollama e download do modelo configurado sem prompt interativo.
 #>
 
 param (
     [ValidateRange(1, 65535)]
     [int]$Port = 8000,
     [switch]$NoBrowser,
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$AutoApprove
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,6 +30,7 @@ Write-Host "=======================================================" -Foreground
 Write-Host " EcoBI Intelligence — Release Piloto Windows" -ForegroundColor Green
 Write-Host " Raiz do Projeto: $RootDir" -ForegroundColor Gray
 Write-Host "=======================================================" -ForegroundColor DarkGreen
+Write-Host "Preparando ambiente..." -ForegroundColor Cyan
 
 function Resolve-EcoBIPythonLauncher {
     $pyCommand = Get-Command py -ErrorAction SilentlyContinue
@@ -50,6 +54,7 @@ function Resolve-EcoBIPythonLauncher {
     throw "Python 3.11+ is required to prepare the local .venv. Install Python for this Windows user and retry."
 }
 
+Write-Host "Verificando dependencias Python..." -ForegroundColor Cyan
 $VenvPython = "$RootDir\.venv\Scripts\python.exe"
 if (-not (Test-Path $VenvPython)) {
     $ResolvedPython = Resolve-EcoBIPythonLauncher
@@ -66,8 +71,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Runtime Python detectado: $PythonExe" -ForegroundColor Cyan
+Write-Host "Preparando runtime..." -ForegroundColor Cyan
 $ArgsList = @("scripts\ecobi_launcher.py", "--host", "127.0.0.1", "--port", $Port)
 if ($NoBrowser) { $ArgsList += "--no-browser" }
 if ($CheckOnly) { $ArgsList += "--check-only" }
+if ($AutoApprove) { $ArgsList += "--auto-approve" }
 
 & $PythonExe $ArgsList
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

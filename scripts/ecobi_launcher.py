@@ -3,22 +3,26 @@
 Executa:
 1. Validação de diretórios locais de runtime, logs e backups.
 2. Inicialização determinística do banco SQLite e aplicação das migrations (001 a 006).
-3. Gerenciamento de logging com rotação em data/logs/ecobi.log.
-4. Inicialização do servidor Uvicorn / FastAPI.
-5. Verificação de disponibilidade prévia (health check em /api/health).
-6. Abertura automática do navegador padrão na interface local Sustainable Tech.
-7. Tratamento gracioso de sinais de encerramento (SIGINT/SIGTERM).
+3. Verificação de disponibilidade da porta e detecção de instância EcoBI já ativa.
+4. Preparação e verificação de prontidão do runtime Ollama local e modelo configurado.
+5. Gerenciamento de logging com rotação em data/logs/ecobi.log.
+6. Inicialização do servidor Uvicorn / FastAPI e verificação de readiness (/api/health + /).
+7. Abertura automática do navegador padrão na interface local Sustainable Tech.
+8. Tratamento gracioso de sinais de encerramento (SIGINT/SIGTERM/SIGBREAK).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
-import signal
 import shutil
+import signal
+import socket
+import sqlite3
 import subprocess
 import sys
 import time
@@ -80,7 +84,26 @@ def ensure_environment(base_dir: Path, logger: logging.Logger, *, initialize_dat
     logger.info("Estrutura de diretórios locais validada em: %s", data_dir)
     if initialize_database:
         logger.info("Inicializando banco de dados local SQLite (WAL) e aplicando migrations...")
-        database.init_db(db_path)
+        try:
+            database.init_db(db_path)
+        except sqlite3.OperationalError as exc:
+            logger.error(
+                "Banco de dados SQLite bloqueado ou inacessivel (%s): %s. "
+                "Encerre outras instancias do EcoBI ou verifique permissoes em %s.",
+                db_path,
+                exc,
+                runtime_dir,
+            )
+            raise
+        except sqlite3.DatabaseError as exc:
+            logger.error(
+                "Banco de dados SQLite invalido ou corrompido (%s): %s. "
+                "Restaure um backup valido de %s antes de reiniciar.",
+                db_path,
+                exc,
+                backups_dir,
+            )
+            raise
         logger.info("Banco de dados pronto e migrations aplicadas com sucesso.")
     return {
         "data_dir": data_dir,
@@ -92,12 +115,67 @@ def ensure_environment(base_dir: Path, logger: logging.Logger, *, initialize_dat
     }
 
 
+def _urlopen_direct(url: str, timeout: float = 2.0):
+    """Abre URL loopback ignorando variaveis HTTP_PROXY/HTTPS_PROXY."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(url, timeout=timeout)
+
+
+def check_port_availability(host: str, port: int, logger: Optional[logging.Logger] = None) -> str:
+    """Verifica se a porta local esta livre, ocupada pelo proprio EcoBI ou por outro servico.
+
+    Retorna:
+    - 'available': porta livre para bind local.
+    - 'ecobi_running': uma instancia saudavel do EcoBI ja esta respondendo nesta porta.
+    - 'occupied': outro processo esta ocupando a porta.
+    """
+    in_use = False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        if probe.connect_ex((host, port)) == 0:
+            in_use = True
+
+    if not in_use:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as binder:
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                binder.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            try:
+                binder.bind((host, port))
+            except OSError:
+                in_use = True
+
+    if not in_use:
+        return "available"
+
+    health_url = f"http://{host}:{port}/api/health"
+    try:
+        with _urlopen_direct(health_url, timeout=2.0) as resp:
+            if resp.status == 200:
+                payload = json.loads(resp.read().decode("utf-8"))
+                if payload.get("service") == "ecobi-intelligence":
+                    if logger:
+                        logger.info("EcoBI ja esta em execucao em http://%s:%s.", host, port)
+                    return "ecobi_running"
+    except Exception:
+        pass
+
+    if logger:
+        logger.error(
+            "A porta %s:%s ja esta ocupada por outro processo. "
+            "Encerre o processo conflitante ou execute com outra porta (ex.: .\\start.ps1 -Port %s).",
+            host,
+            port,
+            port + 1 if port < 65535 else 8001,
+        )
+    return "occupied"
+
+
 def wait_for_health_check(url: str, timeout_sec: float = 30.0, logger: Optional[logging.Logger] = None) -> bool:
     """Executa polling no endpoint /api/health até que o backend responda HTTP 200."""
     t0 = time.perf_counter()
     while (time.perf_counter() - t0) < timeout_sec:
         try:
-            with urllib.request.urlopen(url, timeout=2.0) as resp:
+            with _urlopen_direct(url, timeout=2.0) as resp:
                 if resp.status == 200:
                     if logger:
                         logger.info("Health check aprovado em %s (%.2fs)", url, time.perf_counter() - t0)
@@ -109,8 +187,37 @@ def wait_for_health_check(url: str, timeout_sec: float = 30.0, logger: Optional[
     return False
 
 
+def wait_for_readiness(base_url: str, timeout_sec: float = 30.0, logger: Optional[logging.Logger] = None) -> bool:
+    """Verifica prontidao efetiva de backend (/api/health) e frontend (/) antes de declarar sistema pronto."""
+    health_url = f"{base_url.rstrip('/')}/api/health"
+    root_url = f"{base_url.rstrip('/')}/"
+    t0 = time.perf_counter()
+    while (time.perf_counter() - t0) < timeout_sec:
+        try:
+            with _urlopen_direct(health_url, timeout=2.0) as h_resp:
+                if h_resp.status != 200:
+                    time.sleep(0.4)
+                    continue
+                h_data = json.loads(h_resp.read().decode("utf-8"))
+                if h_data.get("status") != "healthy" or h_data.get("block_external_ai") is not True:
+                    time.sleep(0.4)
+                    continue
+            with _urlopen_direct(root_url, timeout=2.0) as r_resp:
+                if r_resp.status == 200:
+                    if logger:
+                        logger.info(
+                            "Servicos verificados (/api/health e frontend HTTP 200) em %.2fs.",
+                            time.perf_counter() - t0,
+                        )
+                    return True
+        except Exception:
+            time.sleep(0.4)
+    if logger:
+        logger.error("Timeout de %.1fs aguardando prontidao de backend/frontend em %s", timeout_sec, base_url)
+    return False
 
-def prepare_local_ai_runtime(logger: logging.Logger, check_only: bool = False) -> None:
+
+def prepare_local_ai_runtime(logger: logging.Logger, check_only: bool = False, auto_approve: bool = False) -> None:
     """Prepares only the signed per-user Ollama runtime and configured local model on Windows."""
     if sys.platform != "win32":
         return
@@ -122,9 +229,21 @@ def prepare_local_ai_runtime(logger: logging.Logger, check_only: bool = False) -
         logger.warning("Windows Ollama bootstrap is unavailable; deterministic fallback remains enabled.")
         return
 
-    command = [powershell, "-NoLogo", "-NoProfile", "-File", str(helper), "-ModelName", config.DEFAULT_MODEL]
+    command = [
+        powershell,
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(helper),
+        "-ModelName",
+        config.DEFAULT_MODEL,
+    ]
     if check_only:
         command.append("-CheckOnly")
+    if auto_approve:
+        command.append("-AutoApprove")
     try:
         result = subprocess.run(command, cwd=str(ROOT_DIR), check=False)
     except OSError as exc:
@@ -178,6 +297,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, choices=range(1, 65536), default=config.ECOBI_PORT, help="Porta HTTP local")
     parser.add_argument("--no-browser", action="store_true", help="Não abre automaticamente o navegador web")
     parser.add_argument("--check-only", action="store_true", help="Apenas valida o ambiente e encerra")
+    parser.add_argument("--auto-approve", action="store_true", help="Autoriza instalacao do Ollama e download do modelo sem prompt interativo")
     args = parser.parse_args()
     config.ECOBI_PORT = args.port
     os.environ["ECOBI_PORT"] = str(args.port)
@@ -192,21 +312,36 @@ def main() -> None:
     logger.info(" Versão: 4.0.0 (Release Piloto Windows)")
     logger.info("=======================================================")
 
-    env_paths = ensure_environment(base_dir, logger, initialize_database=not args.check_only)
-    prepare_local_ai_runtime(logger, check_only=args.check_only)
+    logger.info("Preparando ambiente...")
+    try:
+        ensure_environment(base_dir, logger, initialize_database=not args.check_only)
+    except (sqlite3.DatabaseError, OSError):
+        sys.exit(1)
+
+    logger.info("Preparando runtime de IA local...")
+    prepare_local_ai_runtime(logger, check_only=args.check_only, auto_approve=args.auto_approve)
+    logger.info("Verificando servicos locais de IA...")
     check_local_ai_runtime(logger)
 
     if args.check_only:
         logger.info("Modo --check-only concluído com êxito.")
         return
 
+    server_url = f"http://{args.host}:{args.port}"
+    port_state = check_port_availability(args.host, args.port, logger=logger)
+    if port_state == "ecobi_running":
+        if not args.no_browser:
+            logger.info("Abrindo interface web existente no navegador padrao: %s", server_url)
+            webbrowser.open(server_url)
+        logger.info("Aplicacao ja esta pronta em %s (nenhum processo duplicado iniciado).", server_url)
+        return
+    if port_state == "occupied":
+        sys.exit(1)
+
     import uvicorn
     from backend.main import app
 
-    server_url = f"http://{args.host}:{args.port}"
-    health_url = f"{server_url}/api/health"
-
-    logger.info("Iniciando servidor local FastAPI em %s...", server_url)
+    logger.info("Iniciando aplicacao em %s...", server_url)
 
     # Configuração do servidor Uvicorn em processo controlado
     uvicorn_config = uvicorn.Config(
@@ -229,22 +364,25 @@ def main() -> None:
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, handle_sigint)
 
-    # Abre navegador após health check em thread separada
-    if not args.no_browser:
-        import threading
-        def _open_browser_when_ready():
-            if wait_for_health_check(health_url, timeout_sec=20.0, logger=logger):
+    import threading
+
+    def _verify_readiness_and_open_browser():
+        logger.info("Verificando servicos (readiness)...")
+        if wait_for_readiness(server_url, timeout_sec=30.0, logger=logger):
+            logger.info("Aplicacao pronta em %s", server_url)
+            if not args.no_browser:
                 logger.info("Abrindo interface web no navegador padrão: %s", server_url)
                 webbrowser.open(server_url)
 
-        t = threading.Thread(target=_open_browser_when_ready, daemon=True)
-        t.start()
+    t = threading.Thread(target=_verify_readiness_and_open_browser, daemon=True)
+    t.start()
 
     logger.info("EcoBI em execução. Pressione Ctrl+C na janela para encerrar com segurança.")
     try:
         server.run()
     except Exception as exc:
         logger.error("Erro inesperado durante a execução do servidor: %s", exc)
+        sys.exit(1)
     finally:
         logger.info("Servidor encerrado. Banco de dados e logs sincronizados.")
 

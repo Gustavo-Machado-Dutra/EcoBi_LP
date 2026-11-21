@@ -3,7 +3,8 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 8000,
     [switch]$NoBrowser,
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$AutoApprove
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,5 +16,6 @@ if (-not (Test-Path -LiteralPath $Launcher -PathType Leaf)) {
 $Arguments = @{ Port = $Port }
 if ($NoBrowser) { $Arguments.NoBrowser = $true }
 if ($CheckOnly) { $Arguments.CheckOnly = $true }
+if ($AutoApprove) { $Arguments.AutoApprove = $true }
 & $Launcher @Arguments
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

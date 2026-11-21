@@ -544,7 +544,7 @@ async def check_ollama_status() -> Dict[str, Any]:
 
     tags_url = f"{ollama_url.rstrip('/')}/api/tags"
     try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=3.0) as client:
+        async with httpx.AsyncClient(follow_redirects=False, timeout=3.0, trust_env=False) as client:
             resp = await client.get(tags_url)
             if resp.status_code == 200:
                 data = resp.json()
@@ -832,7 +832,7 @@ async def process_assistant_message(
             current_round = 0
 
             try:
-                async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec)) as client:
+                async with httpx.AsyncClient(follow_redirects=False, timeout=float(timeout_sec), trust_env=False) as client:
                     while current_round < max_rounds:
                         current_round += 1
                         payload = {
@@ -1014,7 +1014,7 @@ async def unload_idle_ollama_model(
 
     if security.verify_external_url_allowed(config.OLLAMA_URL):
         try:
-            async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
+            async with httpx.AsyncClient(follow_redirects=False, timeout=5.0, trust_env=False) as client:
                 resp = await client.post(
                     f"{config.OLLAMA_URL.rstrip('/')}/api/generate",
                     json={"model": target_model, "prompt": "", "keep_alive": 0},
