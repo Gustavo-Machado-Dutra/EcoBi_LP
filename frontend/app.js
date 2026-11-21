@@ -3007,9 +3007,9 @@
 
     document.getElementById("btn-quick-demo-session")?.addEventListener("click", async () => {
       try {
-        await createSessionRequest("Ana Beatriz Mendes", "ana.mendes@ecobi.local", "admin", true);
+        await createSessionRequest("Ana Beatriz Mendes", "ana.mendes@ecobi.local", "analyst", true);
         setInlineFeedback("session-form-feedback", "Sessão Rápida Demo Local ativada!");
-        showToast("Sessão Rápida Demo Local (admin) autenticada.");
+        showToast("Sessão Rápida Demo Local autenticada.");
         closeSessionModal();
         await loadProjects();
       } catch (err) {
