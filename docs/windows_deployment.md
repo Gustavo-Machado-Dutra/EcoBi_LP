@@ -42,17 +42,20 @@ EcoBI/
 
 ### Método 1: Duplo-Clique (Operadores e Usuários Finais)
 1. Navegue até a pasta do projeto.
-2. Dê duplo-clique no arquivo `scripts\start_ecobi.bat`.
-3. Uma janela do console exibirá o processo de bootstrap e a aplicação abrirá automaticamente o navegador padrão em `http://127.0.0.1:8000`.
+2. Dê duplo-clique no arquivo `start.bat` na raiz do projeto (ou `scripts\start_ecobi.bat`).
+3. O script aciona automaticamente o PowerShell com política local de execução, prepara o ambiente `.venv` na primeira execução, inicializa o banco SQLite e o runtime Ollama local (`qwen3.5:4b`) e abre o navegador padrão em `http://127.0.0.1:8000` após o readiness check (`/api/health` e `/`).
 
 ### Método 2: PowerShell (Administradores e Técnicos)
 Abra o PowerShell na pasta do projeto e execute:
 ```powershell
+.\start.ps1
+# ou diretamente:
 .\scripts\start_ecobi.ps1
 ```
 Parâmetros opcionais disponíveis:
 ```powershell
-.\scripts\start_ecobi.ps1 -Port 8080 -NoBrowser
+.\start.ps1 -Port 8080 -NoBrowser
+.\start.ps1 -AutoApprove   # Autoriza instalação do Ollama e download do modelo sem prompt interativo
 ```
 
 ### Método 3: Validação de Ambiente (Check-Only)
@@ -99,4 +102,4 @@ O EcoBI não instala serviço próprio de sistema. Se o Ollama foi instalado pel
 
 
 ## Inicialização por um comando
-Na raiz do repositório, execute `.\start.ps1`. O script delega a `scripts/start_ecobi.ps1`, prepara o `.venv` local com Python 3.11+ e instala dependências só nesse ambiente. Na primeira inicialização normal do Windows, o launcher procura Ollama; se estiver ausente, baixa o instalador oficial, verifica a assinatura Authenticode do editor, instala no perfil do usuário e baixa somente o modelo padrão configurado. O fluxo não baixa nem instala nada em `-CheckOnly` e reusa o Ollama/modelo já instalado. A instalação e o modelo requerem Internet e espaço local. Falhas continuam no fallback analítico local com `BLOCK_EXTERNAL_AI=True`. Esta rotina de testes usa comandos simulados; o instalador real e a inferência não foram executados neste ambiente.
+Na raiz do repositório, execute `.\start.ps1` (ou dê duplo-clique em `start.bat`). O script delega a `scripts/start_ecobi.ps1`, prepara o `.venv` local com Python 3.11+ e instala dependências só nesse ambiente. Na primeira inicialização normal do Windows, o launcher verifica espaço livre (~5 GB recomendados), procura Ollama; se estiver ausente, baixa o instalador oficial (com `-AutoApprove` ou confirmação interativa), verifica a assinatura Authenticode do editor (`O=Ollama Inc.`), instala no perfil do usuário e baixa somente o modelo padrão configurado, validando em seguida a API HTTP em `127.0.0.1:11434/api/tags`. O fluxo não baixa nem instala nada em `-CheckOnly`, detecta instâncias EcoBI já ativas na mesma porta evitando processos duplicados, falha de modo explícito em porta ocupada ou banco SQLite corrompido/bloqueado e mantém o fallback analítico local com `BLOCK_EXTERNAL_AI=True`.

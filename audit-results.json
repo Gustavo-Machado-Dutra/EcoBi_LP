@@ -926,5 +926,68 @@
       "Physical Power BI Desktop application opening not automated",
       "Destructive uninstall of existing user Ollama skipped"
     ]
+  },
+  "final_homologation_2026_11_21": {
+    "date": "2026-11-21",
+    "classification": "ready_with_known_limitations",
+    "commits": [
+      "51484da",
+      "af3c4c1",
+      "39a700f",
+      "c895362",
+      "f841ffa"
+    ],
+    "automated_tests": {
+      "pytest_passed": 93,
+      "pytest_failed": 0,
+      "pytest_warning": "1 StarletteDeprecationWarning (TestClient/httpx)",
+      "pytest_duration_seconds": 336.87,
+      "node_onboarding_passed": 7,
+      "node_syntax_passed": true,
+      "python_compileall_passed": true,
+      "powershell_ast_passed": true
+    },
+    "clean_clone_bootstrap": {
+      "source": "git archive HEAD in .codex-tmp/clean-install-test",
+      "venv_created_from_scratch": true,
+      "requirements_installed_isolated": true,
+      "check_only_exit": 0,
+      "check_only_db_created": false,
+      "live_readiness_seconds": 4,
+      "duplicate_launch_exit": 0,
+      "duplicate_launch_prevented": true,
+      "official_ollama_installer_bytes": 1857946272,
+      "official_ollama_installer_signature_valid": true,
+      "official_ollama_installer_sha256": "2EEB9FF7EF83902B5D48562DBAF0AF5489829C3D52435FB8067DDAD23CB33C65"
+    },
+    "browser_e2e_17_steps_and_restart": {
+      "browser": "Google Chrome headless CDP",
+      "steps_verified": 17,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "ollama_ps_model_verified": "qwen3.5:4b",
+      "persisted_dashboard_revenue_after_restart": "R$ 26.471.450,00",
+      "sqlite_integrity": "ok",
+      "sqlite_journal_mode": "wal",
+      "sqlite_foreign_key_violations": 0
+    },
+    "powerbi_desktop_verification": {
+      "installed_version": "2.159.1231.0",
+      "pbip_opened": "EcoBI_Homolog.pbip",
+      "pbidesktop_responding": true,
+      "msmdsrv_active": true,
+      "visible_window_title": "EcoBI_Homolog",
+      "error_dialogs": 0,
+      "canvas_visual_inspection": "not_executed_headless"
+    },
+    "real_db_untouched": {
+      "path": "data/runtime/ecobi.db",
+      "size_bytes": 466944,
+      "sha256": "11735d0c671fcf712a33e0ba35a8b0d8032436c2ab4bcbf9b355e74bc91ca73c"
+    },
+    "external_limitations": [
+      "No Windows ISO/VHDX or Windows Sandbox enabled for clean-OS VM test without host Ollama",
+      "No real corporate PostgreSQL server/credentials or psycopg2 driver for live external PostgreSQL test"
+    ]
   }
 }

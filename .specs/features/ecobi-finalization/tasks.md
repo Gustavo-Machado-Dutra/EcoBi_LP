@@ -202,6 +202,8 @@ Phases are sequential; tasks within each phase execute in listed order.
 
 **Run reupload-collision**: `TEMP="$PWD/.codex-tmp" TMP="$PWD/.codex-tmp" TMPDIR="$PWD/.codex-tmp" .venv/Scripts/python.exe -m pytest -vv --basetemp=.codex-tmp/tlc-reupload-collision tests/test_data_quality.py -k concurrent_same_filename_ingests_use_distinct_storage_paths`
 
+**Run resilience**: `TEMP="$PWD/.codex-tmp" TMP="$PWD/.codex-tmp" TMPDIR="$PWD/.codex-tmp" .venv/Scripts/python.exe -m pytest -vv --basetemp=.codex-tmp/tlc-resilience tests/test_resilience_recovery.py`
+
 **Run suite**: `TEMP="$PWD/.codex-tmp" TMP="$PWD/.codex-tmp" TMPDIR="$PWD/.codex-tmp" .venv/Scripts/python.exe -m pytest -vv --basetemp=.codex-tmp/tlc-suite`
 
 **C1** - Isolated launcher check-only preserves missing-DB absence and existing SQLite-canary bytes; unsafe bind is rejected (SET-01, SET-09). Operational DB observation is metadata-only.
@@ -211,7 +213,7 @@ Proof: run launcher-bind | test_launcher_rejects_network_bind_hosts_before_start
 
 **C2** - Ollama readiness is constrained to the local allowlist and unavailable/model-missing paths keep external AI blocked with deterministic fallback (SET-03, SET-04, SET-06)
 Proof: run local-ai | 5 passed
-Proof: run ollama-bootstrap | 14 passed
+Proof: run ollama-bootstrap | 21 passed
 
 **C3** - Scheduled connector runs persist exact initial and incremental rows, skip an overlapping execution while connector I/O is blocked, honor active connector locks, and record job-specific statuses and processed counts in execution history (MOD-13, FIN-03)
 Proof: run flows | test_c22_scheduled_connector_sync_and_concurrency_lock PASSED
@@ -227,9 +229,10 @@ Proof: run onboarding | contextual guides cover all twelve existing views
 Proof: run onboarding | stored onboarding preferences are versioned and non-sensitive
 Proof: run onboarding | welcome and tour preserve non-modal keyboard navigation while help remains modal
 
-**C7** - Real application shell serves the navbar/sidebar help controls and local controller asset (ONB-11)
+**C7** - Real application shell serves the navbar/sidebar help controls and local controller asset, and quick demo session enforces the analyst role (ONB-11, MOD-02)
 Proof: run shell | test_application_shell_loads_onboarding_controller PASSED
 Proof: run shell | test_onboarding_controller_is_served_as_local_static_asset PASSED
+Proof: run shell | test_quick_demo_session_uses_analyst_role PASSED
 
 **C8** - Malformed uploads are rejected and canonical mappings persist and reapply (MOD-03, MOD-04)
 Proof: run flows | test_corrupted_file_rejected_cleanly PASSED
@@ -258,14 +261,15 @@ Proof: run flows | test_temporal_split_and_insufficient_history PASSED
 **C15** - Validation blocks export when the analysis is not eligible (MOD-09)
 Proof: run flows | test_rejected_analysis_blocks_powerbi_generation PASSED
 
-**C16** - Eligible financial and predictive results create a reconciled Power BI artifact (MOD-10)
+**C16** - Eligible financial and predictive results create a reconciled Power BI artifact with aligned DAX table bindings and M header promotion (MOD-10)
 Proof: run flows | test_pbip_pbir_generation_and_reconciliation PASSED
+Proof: run quality | test_pbip_queryrefs_match_model_tables_and_m_promotes_headers PASSED
 
 **C17** - Persisted due jobs run once and update the next execution/status (MOD-13)
 Proof: run flows | test_scheduler_dispatches_persisted_due_job_once PASSED
 
 **C18** - Current automated Pytest suite completes (FIN-01)
-Proof: run suite | 77 passed
+Proof: run suite | 93 passed
 
 **C19** - General tour supports back/next/skip/close/complete, routes only to documented views, and preserves the last view. Its integration harness invokes production `switchView`, confirms only GET requests, and confirms no project/dataset storage changes (ONB-05, ONB-09)
 Proof: run onboarding | general tour controls navigate only existing views, issue no controller-owned fetches, and persist completion
@@ -284,6 +288,9 @@ Proof: run api-e2e | test_upload_under_tight_host_ram_and_clean_rollback_when_ex
 **C23** - Root `start.ps1` supports Python 3.11+ discovery, starts the live loopback server with onboarding assets, shuts down cleanly, and leaves SQLite WAL/FK integrity intact (SET-01, SET-02, SET-09)
 Proof: run root-launcher | test_start_ecobi_accepts_python_3_11_plus_and_checks_declared_imports PASSED
 Proof: run root-launcher | test_root_start_script_serves_health_and_onboarding_then_shuts_down_cleanly PASSED
+
+**C24** - Launcher handles occupied ports, avoids duplicate EcoBI instances, fails safely on corrupted/locked SQLite, verifies full HTTP readiness, ignores corporate HTTP proxy for local Ollama, and protects XLSX/PostgreSQL connectors (SET-01, SET-06, SET-09, FIN-03, FIN-05)
+Proof: run resilience | 7 passed
 
 ## Approval
 
