@@ -3607,3 +3607,20 @@ html[data-theme=dark] .global-period-filter input { border-color: var(--color-in
     min-width: 580px;
   }
 }
+
+#predictive-feedback::selection,
+#predictive-feedback *::selection {
+  background-color: #1A5FD1;
+  color: #FFFFFF;
+}
+
+.sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
