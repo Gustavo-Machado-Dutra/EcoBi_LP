@@ -1,37 +1,14 @@
-# Python / Virtualenv
-.venv/
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Environment & Local Runtime Data
-.env
-.env.local
-data/runtime/
-*.db
-*.db-wal
-*.db-shm
-
-# Maestri local runtime state
-.maestri/
-
 # OS & Editor
 .DS_Store
 Thumbs.db
+desktop.ini
 *.log
+.vscode/
+.idea/
 
-# PyInstaller / Build Artifacts
-build/
-dist/
-*.spec.bak
-
-# Temporary test runners & scratch directories
-.tmp-pytest/
+# Temporary / Cache
+*.tmp
 .codex-tmp/
-graphify-out/
-
-# Local PowerBI exports
-data/powerbi_exports/
+.tmp-pytest/
+dist/
+build/

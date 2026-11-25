@@ -1,6 +1,0 @@
-periodo,receita_bruta,impostos_devolucoes,custo_fixo,custo_variavel,unidades_vendidas,energia_kwh,combustivel_litros,residuos_gerados_kg,residuos_reciclados_kg,devolucoes_logistica_reversa_un,volume_total_entregas_un,creditos_carbono_tco2e,observacoes
-2025-01,945000.00,122850.00,202000.00,406350.00,23800,47200.00,3820.00,2920.00,2482.00,570,21000,15.20,Mês 1 de série curta para teste de validação de horizonte mínimo.
-2025-02,910000.00,118300.00,202000.00,391300.00,22900,45400.00,3690.00,2810.00,2416.60,540,20200,14.60,Mês 2 de série curta.
-2025-03,1030000.00,133900.00,202000.00,442900.00,25950,48600.00,3950.00,3010.00,2618.70,630,22800,16.40,Mês 3 de série curta.
-2025-04,1005000.00,130650.00,204000.00,432150.00,25300,47100.00,3840.00,2940.00,2587.20,610,22200,16.00,Mês 4 de série curta.
-2025-05,1205000.00,156650.00,204000.00,518150.00,30350,52300.00,4260.00,3290.00,2928.10,760,26600,19.40,Mês 5 de série curta (total de 5 períodos: insuficiente para modelagem sazonal).

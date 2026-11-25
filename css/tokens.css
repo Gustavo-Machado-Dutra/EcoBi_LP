@@ -1,0 +1,311 @@
+/* ==========================================================================
+   EcoBI Intelligence — Design System & Tokens Centralizados
+   Direção Artística: Minimalismo Editorial (Apple) × Clareza Comercial (AbacatePay)
+   Fonte de Verdade do Dark Mode: frontend/styles.css (html[data-theme=dark])
+   ========================================================================== */
+
+:root,
+html[data-theme="light"],
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Identidade Institucional do Modo Claro */
+  --brand-gold: #F2C230;
+  --brand-white: #FFFFFF;
+  --brand-green: #396D3C;
+
+  /* Fundos e Superfícies (Modo Claro Editorial) */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F6F7F5;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F1F3EF;
+  --bg-muted: #F4F6F3;
+
+  --bg-page: var(--bg-primary);
+  --bg-hero: var(--bg-secondary);
+  --bg-subtle: var(--bg-secondary);
+  --bg-surface-muted: var(--bg-elevated);
+  --bg-header: rgba(255, 255, 255, 0.88);
+  --bg-deep: #112217;
+  --bg-closing: #112217;
+  --bg-footer: #0D1B12;
+
+  /* Tipografia */
+  --text-primary: #122117;
+  --text-secondary: #4A594F;
+  --text-muted: #6E7D73;
+  --text-on-deep: #FFFFFF;
+  --text-on-deep-muted: rgba(245, 247, 245, 0.76);
+
+  /* Acentos e Ações */
+  --accent-primary: #396D3C;
+  --accent-primary-hover: #2E5931;
+  --accent-primary-soft: rgba(57, 109, 60, 0.08);
+  --accent-primary-border: rgba(18, 33, 23, 0.22);
+  --accent-primary-contrast: #FFFFFF;
+  --hover-accent-border: rgba(18, 33, 23, 0.22);
+  --accent-secondary: #1E7B68;
+  --accent-highlight: #F2C230;
+  --focus-ring: #396D3C;
+
+  --cta-bg: #F2C230;
+  --cta-hover: #E3B322;
+  --cta-text: #122117;
+
+  --btn-secondary-bg: transparent;
+  --btn-secondary-border: rgba(18, 33, 23, 0.22);
+  --btn-secondary-hover: #F1F3EF;
+  --btn-secondary-hover-border: #122117;
+
+  --deep-accent: #F2C230;
+  --deep-bullet: #F2C230;
+
+  --closing-title: #FFFFFF;
+  --closing-text: rgba(245, 247, 245, 0.78);
+  --closing-outline-bg: transparent;
+  --closing-outline-border: rgba(255, 255, 255, 0.32);
+  --closing-outline-text: #FFFFFF;
+  --closing-outline-hover: rgba(255, 255, 255, 0.10);
+
+  /* Bordas e Campos */
+  --border-color: rgba(18, 33, 23, 0.11);
+  --input-border: rgba(18, 33, 23, 0.22);
+  --input-bg: #F6F7F5;
+  --rule-light: var(--border-color);
+  --rule-strong: var(--input-border);
+  --rule-on-deep: rgba(255, 255, 255, 0.14);
+
+  /* Cores Semânticas */
+  --success: #2D6A3E;
+  --warning: #8A5B00;
+  --danger: #A63A3A;
+  --info: #3C6D8A;
+  --status-ok: var(--success);
+  --status-warn: var(--warning);
+  --status-block: var(--danger);
+
+  /* Vitrine da Aplicação & Gráficos (Modo Claro) */
+  --app-window: #FFFFFF;
+  --app-topbar: #FAFBFA;
+  --app-sidebar: #F6F8F6;
+  --app-panel: #F8FAF8;
+  --app-panel-hover: #EEF2EE;
+  --app-nav-active-bg: #396D3C;
+  --app-nav-active-text: #FFFFFF;
+  --app-nav-active-indicator: none;
+
+  --color-chart-primary: #396D3C;
+  --color-chart-secondary: #168F7D;
+  --color-chart-tertiary: #5687A5;
+  --color-chart-neutral: #8C9B90;
+
+  --chart-surface: #FFFFFF;
+  --chart-surface-border: rgba(18, 33, 23, 0.11);
+  --chart-grid-line: rgba(18, 33, 23, 0.08);
+  --chart-axis-line: rgba(18, 33, 23, 0.20);
+  --chart-axis-text: #53655A;
+  --chart-split-line: #1D5A47;
+  --chart-split-bg: #EAF5EE;
+  --chart-split-border: #9AC6A9;
+  --chart-split-text: #143D30;
+  --chart-series-history: #144B3C;
+  --chart-series-forecast: #0D856E;
+  --chart-series-baseline: #C45D1E;
+  --chart-ci-fill: rgba(27, 154, 126, 0.16);
+  --chart-ci-stroke: rgba(13, 133, 110, 0.60);
+  --chart-marker-halo: #FFFFFF;
+  --chart-track: #E3EAE4;
+
+  --case-bar-baseline: #A5B3A9;
+
+  /* Footer e Overlays */
+  --footer-heading: #FFFFFF;
+  --footer-text: rgba(245, 247, 245, 0.76);
+  --footer-muted: rgba(245, 247, 245, 0.56);
+  --footer-border: rgba(255, 255, 255, 0.10);
+  --footer-accent: #F2C230;
+  --footer-link-hover: #FFFFFF;
+
+  --backdrop-overlay: rgba(10, 20, 14, 0.52);
+
+  /* Elevação Contida */
+  --shadow-sm: 0 1px 3px rgba(18, 33, 23, 0.04);
+  --shadow-window: 0 24px 60px rgba(18, 33, 23, 0.09), 0 2px 8px rgba(18, 33, 23, 0.04);
+  --shadow-modal: 0 28px 72px rgba(10, 20, 14, 0.22);
+
+  /* Tipografia */
+  --font-display: "Fustat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+
+  /* Geometria e Escala */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --container-max: 1160px;
+  --container-wide: 1280px;
+  --header-height: 58px;
+
+  --ease-editorial: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 180ms;
+  --dur-base: 280ms;
+}
+
+/* ==========================================================================
+   Modo Escuro Oficial EcoBI — Sincronizado 1:1 com frontend/styles.css
+   Bloco de referência: html[data-theme=dark] (linhas 3066–3146 + cascata final)
+   ========================================================================== */
+html[data-theme="dark"],
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* 1. Tokens Canônicos Oficiais do Aplicativo EcoBI */
+  --color-app-background: #101522;
+  --color-shell: #101522;
+  --color-sidebar: #141A2C;
+  --color-surface: #1A2132;
+  --color-card: #1A2132;
+  --color-card-hover: #252E43;
+  --color-secondary: #252E43;
+  --color-muted: #20283A;
+
+  --color-mint: #A0EBA5;
+  --color-mint-hover: #B2F2B5;
+  --color-teal: #23D8B7;
+
+  --color-text-primary: #E4E9F5;
+  --color-text-secondary: #B1BAD0;
+  --color-text-muted: #8491A7;
+
+  --color-border: #30394D;
+  --color-input-border: #3C4660;
+
+  --color-success: #62CB8A;
+  --color-warning: #E7B267;
+  --color-danger: #EC7777;
+  --color-info: #82B4D0;
+
+  /* Gráficos Oficiais do Aplicativo EcoBI (incluindo transparências originais) */
+  --color-chart-primary: #A0EBA5;
+  --color-chart-secondary: #23D8B7;
+  --color-chart-tertiary: #82B4D0;
+  --color-chart-neutral: #8491A7;
+
+  --chart-surface: #131A29;
+  --chart-surface-border: #2C374F;
+  --chart-grid-line: rgba(176, 196, 224, 0.17);
+  --chart-axis-line: rgba(176, 196, 224, 0.34);
+  --chart-axis-text: #CBD6EA;
+  --chart-split-line: #8CE8A8;
+  --chart-split-bg: #1D2E35;
+  --chart-split-border: #3B7366;
+  --chart-split-text: #D7F7DC;
+  --chart-series-history: #6AE896;
+  --chart-series-forecast: #2BE4C2;
+  --chart-series-baseline: #F5A356;
+  --chart-ci-fill: rgba(43, 228, 194, 0.18);
+  --chart-ci-stroke: rgba(98, 237, 211, 0.65);
+  --chart-marker-halo: #131A29;
+  --chart-track: #2A354D;
+
+  /* 2. Design System Centralizado da Landing Page (Mapeamento Direto) */
+  --bg-primary: var(--color-app-background);
+  --bg-secondary: var(--color-sidebar);
+  --bg-surface: var(--color-surface);
+  --bg-card: var(--color-card);
+  --bg-elevated: var(--color-card-hover);
+  --bg-muted: var(--color-muted);
+
+  --bg-page: var(--bg-primary);
+  --bg-hero: var(--color-app-background);
+  --bg-subtle: var(--color-sidebar);
+  --bg-surface-muted: var(--color-card-hover);
+  --bg-header: rgba(16, 21, 34, 0.90);
+  --bg-deep: var(--color-surface);
+  --bg-closing: var(--color-sidebar);
+  --bg-footer: var(--color-app-background);
+
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --text-on-deep: var(--color-text-primary);
+  --text-on-deep-muted: var(--color-text-secondary);
+
+  /* Tokens de Destaque Institucional no Dark Mode (Amarelo Oficial EcoBI) */
+  --accent-primary: #F2C230;
+  --accent-primary-hover: #FFD65A;
+  --accent-primary-soft: rgba(242, 194, 48, 0.12);
+  --accent-primary-border: rgba(242, 194, 48, 0.30);
+  --accent-primary-contrast: #101522;
+  --hover-accent-border: var(--accent-primary-border);
+  --accent-secondary: var(--color-teal);
+  --accent-highlight: var(--accent-primary);
+  --focus-ring: var(--accent-primary);
+
+  /* Botão Primário em Amarelo Institucional (#F2C230 sobre #101522) */
+  --cta-bg: var(--accent-primary);
+  --cta-hover: var(--accent-primary-hover);
+  --cta-text: var(--accent-primary-contrast);
+
+  /* Botões Secundários / Ghost / Ícones */
+  --btn-secondary-bg: var(--color-card);
+  --btn-secondary-border: var(--color-border);
+  --btn-secondary-hover: var(--color-card-hover);
+  --btn-secondary-hover-border: var(--accent-primary-border);
+
+  --deep-accent: var(--accent-primary);
+  --deep-bullet: var(--accent-primary);
+
+  --closing-title: var(--color-text-primary);
+  --closing-text: var(--color-text-secondary);
+  --closing-outline-bg: var(--color-card);
+  --closing-outline-border: var(--color-border);
+  --closing-outline-text: var(--color-text-primary);
+  --closing-outline-hover: var(--color-card-hover);
+
+  --border-color: var(--color-border);
+  --input-border: var(--color-input-border);
+  --input-bg: var(--color-card);
+  --rule-light: var(--color-border);
+  --rule-strong: var(--color-input-border);
+  --rule-on-deep: var(--color-border);
+
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --info: var(--color-info);
+  --status-ok: var(--color-success);
+  --status-warn: var(--color-warning);
+  --status-block: var(--color-danger);
+
+  /* Superfícies da Janela Demonstrativa do Sistema EcoBI */
+  --app-window: var(--color-shell);
+  --app-topbar: var(--color-shell);
+  --app-sidebar: var(--color-sidebar);
+  --app-panel: var(--color-card);
+  --app-panel-hover: var(--color-card-hover);
+  --app-nav-active-bg: var(--color-secondary);
+  --app-nav-active-text: var(--color-text-primary);
+  --app-nav-active-indicator: inset 3px 0 0 var(--accent-primary);
+
+  --case-bar-baseline: var(--chart-series-baseline);
+
+  /* Footer (#101522 com divisores #30394D e destaques #F2C230) */
+  --footer-heading: var(--color-text-primary);
+  --footer-text: var(--color-text-secondary);
+  --footer-muted: var(--color-text-muted);
+  --footer-border: var(--color-border);
+  --footer-accent: var(--accent-primary);
+  --footer-link-hover: var(--accent-primary-hover);
+
+  --backdrop-overlay: rgba(8, 12, 20, 0.72);
+
+  /* Sombras Oficiais do Aplicativo EcoBI */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.18);
+  --shadow-window: 0 20px 56px rgba(0, 0, 0, 0.44), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-modal: 0 20px 56px rgba(0, 0, 0, 0.48);
+}
